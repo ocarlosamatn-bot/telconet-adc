@@ -513,7 +513,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
    CONFIGURACIÓN — solo el administrador edita esto
    ══════════════════════════════════════════════ */
 const CONFIG = {
-  SCRIPT_URL : 'https://script.google.com/macros/s/AKfycbzti2VEKzA5u-V8qq-JODjP8hUvKLmifN_6WLcHaKxkzTXgdGdKivMHvi-RQQdvFzpvXw/exec',
+  SCRIPT_URL : 'https://script.google.com/macros/s/AKfycbxLF_ll28VySH9r3U2ZfBfWIljd6XaufuthEm8Ij6Y1YNQnbTZ-RVLEDV94fC347-Cxlw/exec',
   ANTHROPIC_KEY: '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'
 };
 /* ══════════════════════════════════════════════ */
@@ -677,45 +677,36 @@ async function send(){
 }
 
 async function askClaude(q){
-  const maxR=1200;
-  const sample=rows.length>maxR?[...rows.slice(-Math.floor(maxR*.7)),...rows.slice(0,Math.floor(maxR*.3))]:rows;
-  const dataStr=JSON.stringify({headers,rows:sample,totalRows:rows.length});
-  const today=new Date().toLocaleDateString('es-EC',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  // Toda la IA pasa por Apps Script v3 — sin restricciones CORS
+  const url = CONFIG.SCRIPT_URL.split('?')[0].replace(/\/$/, '');
+  const historyToSend = conv.slice(-10);
 
-  const sys=`Eres el Asistente IA de Operaciones de Telconet, empresa líder de telecomunicaciones en Ecuador. Apoyas a las jefaturas en el análisis de trabajos de campo de red FTTH (fibra óptica) del equipo ADC.
+  return new Promise((resolve, reject) => {
+    const cb = 'chat_cb_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('La IA tardó demasiado. Intenta de nuevo.'));
+    }, 60000);
 
-COLUMNAS: TAREA (ID), AÑO, LOGIN (técnico), MES, FECHA, PROCEDENCIA (INDICE OPTICO/MIGRACIONES/etc.), TIPO TAREA (CAJA ATENUADA/HABILITAR FTTH/ATENUACION UM/etc.), NODO (sector de red), CAJA, SPLITTER, UBICACION (GPS), ESTADO (REALIZADO/PENDIENTE), CUADRILLA
-Total registros: ${rows.length} | Fecha: ${today}
+    window[cb] = (data) => {
+      cleanup();
+      if (!data.ok) { reject(new Error(data.error || 'Error en el script')); return; }
+      conv.push({role:'user', content:q});
+      conv.push({role:'assistant', content:data.reply});
+      resolve(data.reply);
+    };
 
-DATOS JSON:
-${dataStr.length>55000?dataStr.slice(0,55000)+'...(truncado)':dataStr}
+    script.onerror = () => { cleanup(); reject(new Error('No se pudo contactar el script.')); };
+    script.src = url
+      + '?action=chat'
+      + '&q=' + encodeURIComponent(q)
+      + '&history=' + encodeURIComponent(JSON.stringify(historyToSend))
+      + '&callback=' + cb;
 
-INSTRUCCIONES:
-- Español, tono ejecutivo y profesional, representando a Telconet
-- Cálculos reales: conteos, porcentajes, rankings por NODO/CUADRILLA/TIPO TAREA/PROCEDENCIA/MES
-- HTML enriquecido:
-  KPIs: <div class="kpi-row"><div class="kp"><div class="v">42</div><div class="l">label</div></div></div>
-  Tablas: <table><tr><th>Col</th></tr><tr><td>val</td></tr></table>
-  Alertas: <div class="hl">texto</div>
-  Tags: <span class="tag g">REALIZADO</span>/<span class="tag a">PENDIENTE</span>/<span class="tag r">ALERTA</span>/<span class="tag b">INFO</span>
-- Informes: KPIs → tabla de detalle → observaciones y recomendaciones
-- Señala trabajos sin CUADRILLA asignada o con ESTADO vacío`;
-
-  conv.push({role:'user',content:q});
-  const resp=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key': CONFIG.ANTHROPIC_KEY,
-      'anthropic-version':'2023-06-01'
-    },
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:conv.slice(-14)})
+    document.head.appendChild(script);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; if(script.parentNode) script.parentNode.removeChild(script); }
   });
-  if(!resp.ok) throw new Error(`API ${resp.status}`);
-  const data=await resp.json();
-  const reply=data.content.map(b=>b.text||'').join('');
-  conv.push({role:'assistant',content:reply});
-  return reply;
 }
 
 function setLoading(){
