@@ -502,32 +502,39 @@ function grp(arr,campo,n){
 
 function buildChartCuad(rFilt){
   if(chartCuad){chartCuad.destroy();chartCuad=null;}
+  const wrap=document.querySelector('#ch-cuad').closest('.chart-wrap')||document.getElementById('ch-cuad').parentElement;
+  wrap.innerHTML='<canvas id="ch-cuad"></canvas>';
   const d=grp(rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='REALIZADO'),'CUADRILLA',8);
-  if(!d.length){document.getElementById('ch-cuad').parentElement.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos para el periodo</p>';return;}
-  chartCuad=new Chart(document.getElementById('ch-cuad'),{type:'bar',data:{labels:d.map(([k])=>k.length>20?k.slice(0,18)+'…':k),datasets:[{data:d.map(([,v])=>v),backgroundColor:'rgba(0,48,135,0.75)',borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:35}}}}});
+  if(!d.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos realizados para el periodo</p>';return;}
+  const colors=d.map((_,i)=>'hsl('+(210+i*15)+',70%,'+(40+i*3)+'%)');
+  chartCuad=new Chart(document.getElementById('ch-cuad'),{type:'bar',data:{labels:d.map(([k])=>k.length>20?k.slice(0,18)+'…':k),datasets:[{data:d.map(([,v])=>v),backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y.toLocaleString()+' trabajos'}}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:35}}}}});
 }
 
 function buildChartTipo(rFilt){
   if(chartTipo){chartTipo.destroy();chartTipo=null;}
+  const wrap=document.querySelector('#ch-tipo').closest('.chart-wrap')||document.getElementById('ch-tipo').parentElement;
+  wrap.innerHTML='<canvas id="ch-tipo"></canvas>';
   const d=grp(rFilt,'PROCEDENCIA',8);
-  if(!d.length){document.getElementById('ch-tipo').parentElement.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos para el periodo</p>';return;}
+  if(!d.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos para el periodo</p>';return;}
   const total=d.reduce((s,[,v])=>s+v,0);
-  const colors=['rgba(0,48,135,.85)','rgba(0,71,190,.8)','rgba(0,180,216,.8)','rgba(26,92,212,.75)','rgba(10,124,82,.75)','rgba(138,88,0,.75)','rgba(160,30,30,.75)','rgba(60,60,80,.7)'];
+  const colors=['#e63946','#2196f3','#ff9800','#4caf50','#9c27b0','#00bcd4','#ff5722','#8bc34a'];
   chartTipo=new Chart(document.getElementById('ch-tipo'),{type:'doughnut',data:{
     labels:d.map(([k,v])=>{const pct=Math.round(v/total*100);return(k.length>16?k.slice(0,14)+'…':k)+' ('+pct+'%)';}),
-    datasets:[{data:d.map(([,v])=>v),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]
+    datasets:[{data:d.map(([,v])=>v),backgroundColor:colors,borderWidth:3,borderColor:'#fff',hoverOffset:8}]
   },options:{responsive:true,maintainAspectRatio:false,plugins:{
-    legend:{position:'right',labels:{font:{size:10},boxWidth:12,padding:8}},
+    legend:{position:'right',labels:{font:{size:11},boxWidth:14,padding:10,color:'#333'}},
     tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.toLocaleString()+' trabajos ('+Math.round(ctx.parsed/total*100)+'%)'}}
   }}});
 }
 
 function buildChartMes(rowsAnio){
   if(chartMes){chartMes.destroy();chartMes=null;}
+  const wrap=document.querySelector('#ch-mes').closest('.chart-wrap')||document.getElementById('ch-mes').parentElement;
+  wrap.innerHTML='<canvas id="ch-mes"></canvas>';
   const mmap={};
   rowsAnio.forEach(r=>{const k=(r['MES']||'').toUpperCase();if(k)mmap[k]=(mmap[k]||0)+1;});
   const d=Object.entries(mmap).sort((a,b)=>{const ia=MESES.indexOf(a[0]),ib=MESES.indexOf(b[0]);return(ia<0?99:ia)-(ib<0?99:ib);});
-  if(!d.length){document.getElementById('ch-mes').parentElement.innerHTML='<p style="font-size:12px;color:var(--text3);padding:60px 0;text-align:center">Sin datos para el año '+selAnio+'</p>';return;}
+  if(!d.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:60px 0;text-align:center">Sin datos para el año '+selAnio+'</p>';return;}
   chartMes=new Chart(document.getElementById('ch-mes'),{type:'line',data:{
     labels:d.map(([k])=>cap(k)),
     datasets:[{label:'Trabajos',data:d.map(([,v])=>v),borderColor:'rgba(0,48,135,1)',backgroundColor:'rgba(0,48,135,0.08)',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'rgba(0,48,135,1)',fill:true,tension:.35}]
@@ -535,16 +542,42 @@ function buildChartMes(rowsAnio){
 }
 
 function buildTbPend(rFilt){
-  const p=rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='PENDIENTE ASIGNAR').slice(0,10);
-  if(!p.length){document.getElementById('tb-pend').innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay trabajos Pendiente Asignar</p>';return;}
-  document.getElementById('tb-pend').innerHTML='<table class="dtable"><tr><th>Procedencia</th><th>Tipo Tarea</th><th>Nodo</th></tr>'+p.map(r=>`<tr>
-    <td><span class="tag b">${(r['PROCEDENCIA']||'&mdash;').slice(0,20)}</span></td>
-    <td style="font-size:11px">${(r['TIPO TAREA']||'&mdash;').slice(0,22)}</td>
-    <td style="font-size:11px">${(r['NODO']||'&mdash;').slice(0,18)}</td>
-  </tr>`).join('')+'</table>';
+  const pendAll=rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='PENDIENTE ASIGNAR');
+  const cont=document.getElementById('tb-pend');
+  if(!pendAll.length){cont.innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay trabajos Pendiente Asignar</p>';return;}
+
+  // Agrupaciones para la gráfica
+  const porProc={};const porTipo={};
+  pendAll.forEach(r=>{
+    const p=r['PROCEDENCIA']||'Sin dato'; porProc[p]=(porProc[p]||0)+1;
+    const t=r['TIPO TAREA']||'Sin dato'; porTipo[t]=(porTipo[t]||0)+1;
+  });
+  const topProc=Object.entries(porProc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const topTipo=Object.entries(porTipo).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxP=topProc[0]?.[1]||1; const maxT=topTipo[0]?.[1]||1;
+
+  cont.innerHTML=`
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Total: ${pendAll.length} trabajos pendientes de asignar</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--tnblue);margin-bottom:8px">Por Procedencia</div>
+        ${topProc.map(([k,v])=>`<div style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--text2)">${k.slice(0,22)}</span><strong>${v}</strong></div>
+          <div style="background:var(--surface3);border-radius:4px;height:7px;overflow:hidden"><div style="height:100%;border-radius:4px;background:#e63946;width:${Math.round(v/maxP*100)}%"></div></div>
+        </div>`).join('')}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--tnblue);margin-bottom:8px">Por Tipo de Tarea</div>
+        ${topTipo.map(([k,v])=>`<div style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--text2)">${k.slice(0,22)}</span><strong>${v}</strong></div>
+          <div style="background:var(--surface3);border-radius:4px;height:7px;overflow:hidden"><div style="height:100%;border-radius:4px;background:#ff9800;width:${Math.round(v/maxT*100)}%"></div></div>
+        </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 function buildTbNodos(rFilt){
+  // Usar exactamente rFilt que ya viene filtrado por año Y mes
   const d=grp(rFilt,'NODO',8);const max=d[0]?.[1]||1;
   if(!d.length){document.getElementById('tb-nodos').innerHTML='<p style="font-size:12px;color:var(--text3);padding:10px 0">Sin datos para el periodo</p>';return;}
   document.getElementById('tb-nodos').innerHTML='<table class="dtable"><tr><th>Nodo</th><th>Trabajos</th><th>Proporcion</th></tr>'+d.map(([k,v])=>`<tr><td style="font-size:11px">${k.slice(0,22)}</td><td style="font-weight:600;color:var(--tnblue)">${v}</td><td><div class="pbar"><div class="pfill" style="width:${Math.round(v/max*100)}%"></div></div></td></tr>`).join('')+'</table>';
