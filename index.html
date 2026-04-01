@@ -302,7 +302,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 /* ====================================================
    CONFIGURACION — pega aqui la URL de tu Apps Script
    ==================================================== */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTAlCPjFOTQqp7oarBu9aGTiSYjyS4FJWOzIUe-O6jgs0vkx9hXk6aPKAGle16_nTMdA/exec';  // <- reemplaza esto
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwTAlCPjFOTQqp7oarBu9aGTiSYjyS4FJWOzIUe-O6jgs0vkx9hXk6aPKAGle16_nTMdA/exec';  // <- reemplaza esto
 /* ==================================================== */
 
 let rows=[], headers=[], conv=[], chatOpen=false;
@@ -352,7 +352,7 @@ async function refresh(){
 function onLoaded(json){
   headers=json.headers; rows=json.rows;
   const mes=mesActual();
-  const rMes=rows.filter(r=>(r['MES']||'').toUpperCase()===mes.toUpperCase()&&String(r['AÑO']||r['ANO']||r['AÑO']||'').trim()==='2026');
+  const anioCol=headers.find(h=>/^a.?[nñ]o$/i.test(h.trim()))||headers.find(h=>h.includes('Ñ')||h.includes('ñ'))||'AÑO'; const rMes=rows.filter(r=>(r['MES']||'').toUpperCase()===mes.toUpperCase()&&String(r[anioCol]||'').trim()==='2026');
   const real=rows.filter(r=>(r['ESTADO']||'').toUpperCase()==='REALIZADO').length;
   const realMes=rMes.filter(r=>(r['ESTADO']||'').toUpperCase()==='REALIZADO').length;
   const pend=rows.filter(r=>(r['ESTADO']||'').toUpperCase()!=='REALIZADO').length;
@@ -411,10 +411,10 @@ function buildChartTipo(rows){
   }}});
 }
 
-function buildChartMes(rows){
+function buildChartMes(rows){  const anioCol=headers.find(h=>/^a.?[nñ]o$/i.test(h.trim()))||headers.find(h=>h.includes('Ñ')||h.includes('ñ'))||'AÑO';
   const orden=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   // Solo registros de 2026
-  const rows2026=rows.filter(r=>String(r['AÑO']||r['ANO']||r['AÑO']||'').trim()==='2026');
+  const rows2026=rows.filter(r=>String(r[anioCol]||'').trim()==='2026');
   // Agrupar por mes
   const mmap={};
   rows2026.forEach(r=>{const k=(r['MES']||'').toUpperCase();if(k)mmap[k]=(mmap[k]||0)+1;});
