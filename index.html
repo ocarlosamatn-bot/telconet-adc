@@ -599,10 +599,7 @@ function addMsg(role,html){
   d.innerHTML='<div class="cav">'+(role==='assistant'?'IA':'Tú')+'</div><div class="cbub">'+fmt(html)+'</div>';
   w.appendChild(d);w.scrollTop=w.scrollHeight;
 }
-function fmt(t){return t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/
-
-/g,'</p><p style="margin-top:6px">').replace(/
-/g,'<br>');}
+function fmt(t){return t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p style="margin-top:6px">').replace(/\n/g,'<br>');}
 function addTyping(){
   const w=document.getElementById('cmsgs');const id='tp'+Date.now();
   const d=document.createElement('div');d.className='cmsg assistant';d.id=id;
