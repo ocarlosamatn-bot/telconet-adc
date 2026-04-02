@@ -254,17 +254,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="chart-card">
       <div class="chart-title">&#128202; Produccion por cuadrilla</div>
       <div class="chart-sub" id="sub-cuad">Trabajos realizados por equipo</div>
-      <div class="chart-wrap"><canvas id="ch-cuad"></canvas></div>
+      <div class="chart-wrap" id="wrap-cuad"><canvas id="ch-cuad"></canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-title">&#128295; Tipos de trabajo por procedencia</div>
       <div class="chart-sub" id="sub-tipo">Distribucion por procedencia del mes seleccionado</div>
-      <div class="chart-wrap"><canvas id="ch-tipo"></canvas></div>
+      <div class="chart-wrap" id="wrap-tipo"><canvas id="ch-tipo"></canvas></div>
     </div>
     <div class="chart-card full">
       <div class="chart-title">&#128200; Tendencia mensual de trabajos</div>
       <div class="chart-sub" id="sub-mes">Evolucion mensual del a&ntilde;o seleccionado</div>
-      <div class="chart-wrap tall"><canvas id="ch-mes"></canvas></div>
+      <div class="chart-wrap tall" id="wrap-mes"><canvas id="ch-mes"></canvas></div>
     </div>
   </div>
   <div class="tables-grid">
@@ -463,7 +463,7 @@ function renderDashboard(){
 
   const total=rFilt.length;
   const real=rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='REALIZADO').length;
-  const pend=rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='PENDIENTE ASIGNAR').length;
+  const pend=rFilt.filter(r=>{const e=(r['ESTADO']||'').trim().toUpperCase();return e==='PENDIENTE ASIGNAR'||e==='PENDIENTE'||e.includes('PENDIENTE');}).length;
   const otros=rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()!=='REALIZADO'&&(r['ESTADO']||'').toUpperCase()!=='PENDIENTE ASIGNAR').length;
   const sinC=rFilt.filter(r=>!r['CUADRILLA']||r['CUADRILLA'].trim()==='').length;
   const pct=total>0?Math.round(real/total*100):0;
@@ -502,20 +502,27 @@ function grp(arr,campo,n){
 
 function buildChartCuad(rFilt){
   if(chartCuad){chartCuad.destroy();chartCuad=null;}
-  const wrap=document.querySelector('#ch-cuad').closest('.chart-wrap')||document.getElementById('ch-cuad').parentElement;
-  wrap.innerHTML='<canvas id="ch-cuad"></canvas>';
-  const d=grp(rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='REALIZADO'),'CUADRILLA',8);
-  if(!d.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos realizados para el periodo</p>';return;}
-  const colors=d.map((_,i)=>'hsl('+(210+i*15)+',70%,'+(40+i*3)+'%)');
+  const wrapCuad=document.getElementById('wrap-cuad');
+  wrapCuad.innerHTML='<canvas id="ch-cuad"></canvas>';
+  // Buscar REALIZADO con trim para evitar espacios
+  const realizados=rFilt.filter(r=>(r['ESTADO']||'').trim().toUpperCase()==='REALIZADO');
+  const d=grp(realizados,'CUADRILLA',8);
+  if(!d.length){
+    // Mostrar todos si no hay realizados para depurar
+    const estados=[...new Set(rFilt.map(r=>(r['ESTADO']||'').trim()))].slice(0,5).join(', ');
+    wrapCuad.innerHTML='<div style="font-size:11px;color:var(--text3);padding:20px;text-align:center">Sin realizados.<br>Estados encontrados: '+estados+'</div>';
+    return;
+  }
+  const colors=d.map((_,i)=>'hsl('+(210+i*18)+',72%,'+(38+i*4)+'%)');
   chartCuad=new Chart(document.getElementById('ch-cuad'),{type:'bar',data:{labels:d.map(([k])=>k.length>20?k.slice(0,18)+'…':k),datasets:[{data:d.map(([,v])=>v),backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y.toLocaleString()+' trabajos'}}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:35}}}}});
 }
 
 function buildChartTipo(rFilt){
   if(chartTipo){chartTipo.destroy();chartTipo=null;}
-  const wrap=document.querySelector('#ch-tipo').closest('.chart-wrap')||document.getElementById('ch-tipo').parentElement;
-  wrap.innerHTML='<canvas id="ch-tipo"></canvas>';
+  const wrapTipo=document.getElementById('wrap-tipo');
+  wrapTipo.innerHTML='<canvas id="ch-tipo"></canvas>';
   const d=grp(rFilt,'PROCEDENCIA',8);
-  if(!d.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos para el periodo</p>';return;}
+  if(!d.length){wrapTipo.innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos para el periodo</p>';return;}
   const total=d.reduce((s,[,v])=>s+v,0);
   const colors=['#e63946','#2196f3','#ff9800','#4caf50','#9c27b0','#00bcd4','#ff5722','#8bc34a'];
   chartTipo=new Chart(document.getElementById('ch-tipo'),{type:'doughnut',data:{
@@ -529,20 +536,41 @@ function buildChartTipo(rFilt){
 
 function buildChartMes(rowsAnio){
   if(chartMes){chartMes.destroy();chartMes=null;}
-  const wrap=document.querySelector('#ch-mes').closest('.chart-wrap')||document.getElementById('ch-mes').parentElement;
-  wrap.innerHTML='<canvas id="ch-mes"></canvas>';
+  const wrapMes=document.getElementById('wrap-mes');
+  wrapMes.innerHTML='<canvas id="ch-mes"></canvas>';
   const mmap={};
   rowsAnio.forEach(r=>{const k=(r['MES']||'').toUpperCase();if(k)mmap[k]=(mmap[k]||0)+1;});
   const d=Object.entries(mmap).sort((a,b)=>{const ia=MESES.indexOf(a[0]),ib=MESES.indexOf(b[0]);return(ia<0?99:ia)-(ib<0?99:ib);});
-  if(!d.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:60px 0;text-align:center">Sin datos para el año '+selAnio+'</p>';return;}
+  if(!d.length){wrapMes.innerHTML='<p style="font-size:12px;color:var(--text3);padding:60px 0;text-align:center">Sin datos para el año '+selAnio+'</p>';return;}
   chartMes=new Chart(document.getElementById('ch-mes'),{type:'line',data:{
     labels:d.map(([k])=>cap(k)),
-    datasets:[{label:'Trabajos',data:d.map(([,v])=>v),borderColor:'rgba(0,48,135,1)',backgroundColor:'rgba(0,48,135,0.08)',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'rgba(0,48,135,1)',fill:true,tension:.35}]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y.toLocaleString()+' trabajos'}}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{color:'rgba(0,0,0,0.03)'},ticks:{font:{size:11}}}}}});
+    datasets:[{label:'Trabajos',data:d.map(([,v])=>v),borderColor:'rgba(0,48,135,1)',backgroundColor:'rgba(0,48,135,0.08)',borderWidth:2.5,pointRadius:6,pointBackgroundColor:'rgba(0,48,135,1)',fill:true,tension:.35,
+      datalabels:{display:false}}]
+  },options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y.toLocaleString()+' trabajos'}},
+      afterDraw:null},
+    scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{color:'rgba(0,0,0,0.03)'},ticks:{font:{size:11}}}}}});
+  // Dibujar etiquetas de valor sobre cada punto manualmente
+  const origDraw=chartMes.draw.bind(chartMes);
+  chartMes.draw=function(){
+    origDraw();
+    const meta=chartMes.getDatasetMeta(0);
+    const ctx2=chartMes.ctx;
+    ctx2.save();
+    ctx2.font='bold 11px Inter,sans-serif';
+    ctx2.fillStyle='#003087';
+    ctx2.textAlign='center';
+    meta.data.forEach((pt,i)=>{
+      ctx2.fillText(d[i][1].toLocaleString(), pt.x, pt.y-10);
+    });
+    ctx2.restore();
+  };
+  chartMes.draw();
 }
 
 function buildTbPend(rFilt){
-  const pendAll=rFilt.filter(r=>(r['ESTADO']||'').toUpperCase()==='PENDIENTE ASIGNAR');
+  const pendAll=rFilt.filter(r=>{const e=(r['ESTADO']||'').trim().toUpperCase();return e==='PENDIENTE ASIGNAR'||e==='PENDIENTE'||e.includes('PENDIENTE');});
   const cont=document.getElementById('tb-pend');
   if(!pendAll.length){cont.innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay trabajos Pendiente Asignar</p>';return;}
 
