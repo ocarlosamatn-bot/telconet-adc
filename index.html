@@ -287,11 +287,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="chart-title">&#127758; Mapa de trabajos ejecutados</div>
     <div class="chart-sub" id="sub-mapa">Ubicacion geografica de los trabajos del periodo</div>
     <div id="mapa-wrap" style="height:420px;border-radius:8px;overflow:hidden;background:#e8eef8"></div>
-    <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;border-radius:50%;background:#1a73e8"></div>REALIZADO</div>
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>PENDIENTE</div>
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><div style="width:12px;height:12px;border-radius:50%;background:#e63946"></div>OTROS</div>
-    </div>
+    <div id="mapa-leyenda" style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap"></div>
   </div>
 
 </div>
@@ -778,67 +774,76 @@ function initMap(puntos, container){
     map.fitBounds(bounds);
   }
 }
-/* ── MAPA LEAFLET ── */
+/* ── MAPA LEAFLET — colores por PROCEDENCIA ── */
 let mapaLeaflet=null;
+const PROC_COLORS=['#e63946','#1a73e8','#ff9800','#4caf50','#9c27b0','#00bcd4','#ff5722','#8bc34a','#f06292','#00796b'];
+
 function buildMapa(rFilt){
   const wrap=document.getElementById('mapa-wrap');
   if(!wrap) return;
+
+  // Obtener procedencias únicas para asignar colores
+  const procs=[...new Set(rFilt.map(r=>(r['PROCEDENCIA']||'Sin procedencia').trim().toUpperCase()))].sort();
+  const procColor={};
+  procs.forEach((p,i)=>procColor[p]=PROC_COLORS[i%PROC_COLORS.length]);
 
   // Parsear coordenadas columna UBICACION: "-2.905194,-79.009583"
   const puntos=[];
   rFilt.forEach(r=>{
     const ub=(r['UBICACION']||'').trim();
     if(!ub) return;
-    // Buscar dos números decimales separados por coma
     const m=ub.match(/([-]?\d+\.\d+)[,\s]+([-]?\d+\.\d+)/);
     if(!m) return;
     const lat=parseFloat(m[1]), lng=parseFloat(m[2]);
     if(isNaN(lat)||isNaN(lng)||lat<-90||lat>90) return;
-    puntos.push({lat,lng,nodo:r['NODO']||'',tipo:(r['TIPO TAREA']||''),estado:(r['ESTADO']||'').trim().toUpperCase(),cuad:r['CUADRILLA']||''});
+    const proc=(r['PROCEDENCIA']||'Sin procedencia').trim().toUpperCase();
+    puntos.push({lat,lng,nodo:r['NODO']||'',tipo:r['TIPO TAREA']||'',proc,estado:r['ESTADO']||'',cuad:r['CUADRILLA']||''});
   });
 
   if(!puntos.length){
     wrap.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;color:var(--text3)">Sin coordenadas disponibles para el periodo</div>';
+    document.getElementById('mapa-leyenda').innerHTML='';
     return;
   }
 
-  // Destruir mapa anterior si existe
+  // Destruir mapa anterior
   if(mapaLeaflet){mapaLeaflet.remove();mapaLeaflet=null;}
   wrap.innerHTML='';
 
   // Crear mapa Leaflet
   const map=L.map(wrap,{zoomControl:true,attributionControl:false});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
   mapaLeaflet=map;
-
-  const colorPunto=e=>{
-    if(e==='REALIZADO') return '#1a73e8';
-    if(e.includes('PENDIENTE')) return '#f59e0b';
-    return '#e63946';
-  };
 
   const marcadores=[];
   puntos.forEach(p=>{
-    const color=colorPunto(p.estado);
+    const color=procColor[p.proc]||'#888';
     const marker=L.circleMarker([p.lat,p.lng],{
-      radius:7, fillColor:color, color:'#fff',
-      weight:1.5, opacity:1, fillOpacity:0.85
+      radius:7,fillColor:color,color:'#fff',weight:1.5,opacity:1,fillOpacity:0.88
     }).addTo(map);
-    marker.bindPopup(`<div style="font-size:12px;line-height:1.7;min-width:180px">
-      <strong style="color:#003087">${p.nodo||'Sin nodo'}</strong><br>
-      <span style="color:#666">${p.tipo}</span><br>
-      <span style="background:${color};color:white;padding:1px 7px;border-radius:3px;font-size:11px">${p.estado}</span>
-      ${p.cuad?'<br><span style="font-size:10px;color:#888">'+p.cuad+'</span>':''}
+    marker.bindPopup(`<div style="font-size:12px;line-height:1.8;min-width:200px">
+      <strong style="color:#003087;font-size:13px">${p.nodo||'Sin nodo'}</strong><br>
+      <span style="display:inline-block;background:${color};color:#fff;padding:1px 8px;border-radius:3px;font-size:11px;margin:2px 0">${p.proc}</span><br>
+      <span style="color:#555">${p.tipo}</span><br>
+      <span style="color:#888;font-size:11px">${p.estado}</span>
+      ${p.cuad?'<br><span style="font-size:10px;color:#aaa">'+p.cuad+'</span>':''}
     </div>`);
     marcadores.push(marker);
   });
 
-  // Ajustar vista a todos los puntos
-  const group=L.featureGroup(marcadores);
-  map.fitBounds(group.getBounds().pad(0.1));
+  // Leyenda dinámica por procedencia
+  const leyenda=document.getElementById('mapa-leyenda');
+  if(leyenda){
+    const usadas=[...new Set(puntos.map(p=>p.proc))].sort();
+    leyenda.innerHTML=usadas.map(p=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)">
+      <div style="width:12px;height:12px;border-radius:50%;background:${procColor[p]};flex-shrink:0"></div>${cap(p.toLowerCase())}
+    </div>`).join('');
+  }
 
-  // Forzar redibujado
-  setTimeout(()=>map.invalidateSize(),100);
+  // Ajustar vista
+  const group=L.featureGroup(marcadores);
+  map.fitBounds(group.getBounds().pad(0.08));
+  setTimeout(()=>map.invalidateSize(),150);
 }
 </script>
 </body>
