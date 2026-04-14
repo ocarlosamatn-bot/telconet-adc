@@ -282,6 +282,30 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
   </div>
 
+  <!-- MIGRACIONES MPLS -->
+  <div style="margin-top:20px;margin-bottom:4px">
+    <div style="font-size:16px;font-weight:700;color:var(--tnblue);letter-spacing:-.2px">&#128257; Estado de Migraciones MPLS a Preconectorizada</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:2px">Rutas en proceso de migracion · Hoja: RUTAS MPLS MIGRAR A PRECONECTORIZADA</div>
+  </div>
+  <div class="kpi-grid" id="mig-kpis" style="margin-bottom:16px"></div>
+  <div class="charts-grid" style="margin-bottom:20px">
+    <div class="chart-card">
+      <div class="chart-title">&#128200; Estado de rutas</div>
+      <div class="chart-sub">Migradas vs pendientes de migracion</div>
+      <div class="chart-wrap" id="wrap-mig-estado"><canvas id="ch-mig-estado"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">&#127758; Rutas por canton</div>
+      <div class="chart-sub">Distribucion geografica de rutas</div>
+      <div class="chart-wrap" id="wrap-mig-canton"><canvas id="ch-mig-canton"></canvas></div>
+    </div>
+  </div>
+  <div class="table-card" style="margin-bottom:20px">
+    <div class="table-title">&#9888;&#65039; Rutas pendientes de migrar</div>
+    <div class="table-sub">Rutas con cajas pendientes de migracion a preconectorizada</div>
+    <div id="tb-mig-pend"></div>
+  </div>
+
   <!-- MAPA DE TRABAJOS -->
   <div class="chart-card full" style="margin-top:16px;margin-bottom:24px">
     <div class="chart-title">&#127758; Mapa de trabajos ejecutados</div>
@@ -331,16 +355,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 /* ====================================================
    CONFIGURACION — pega aqui la URL de tu Apps Script
    ==================================================== */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTAlCPjFOTQqp7oarBu9aGTiSYjyS4FJWOzIUe-O6jgs0vkx9hXk6aPKAGle16_nTMdA/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzoJYyjkZDx_S_mISJJ2BMbeHjDdM1WPTnwbdXgJJMq8Lv2ggQmWYqJqtFLrjuI9tmLbQ/exec';
 /* ==================================================== */
 
 let rows=[], headers=[], conv=[], chatOpen=false;
+let rowsMig=[], headersMig=[];
 let selAnio='2026', selMes='TODOS';
-let chartCuad=null, chartTipo=null, chartMes=null;
+let chartCuad=null, chartTipo=null, chartMes=null, chartMig=null;
 
 const MESES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
-window.addEventListener('load',()=>{ initCanvas(); loadData(); });
+window.addEventListener('load',()=>{ initCanvas(); loadData(); loadMigraciones(); });
 document.addEventListener('click', e=>{
   if(!e.target.closest('.filter-btn')&&!e.target.closest('.dropdown'))
     document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('open'));
@@ -416,6 +441,28 @@ function jsonp(url){
     window[cb]=d=>{clean();res(d);};
     s.onerror=()=>{clean();rej(new Error('No se pudo cargar el script'));};
     s.src=url+'?callback='+cb;
+    document.head.appendChild(s);
+    function clean(){clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);}
+  });
+}
+
+async function loadMigraciones(){
+  const url=SCRIPT_URL.split('?')[0];
+  try{
+    const data=await jsonp(url+'?action=migraciones');
+    if(data&&data.ok){ rowsMig=data.rows; headersMig=data.headers; renderMigraciones(); }
+    else console.warn('Migraciones:', (data&&data.error)||'Error');
+  }catch(e){ console.warn('Error cargando migraciones:', e.message); }
+}
+
+function jsonpParam(url, params){
+  return new Promise((res,rej)=>{
+    const cb='cbm_'+Date.now();
+    const s=document.createElement('script');
+    const t=setTimeout(()=>{clean();rej(new Error('Timeout migraciones'));},20000);
+    window[cb]=d=>{clean();res(d);};
+    s.onerror=()=>{clean();rej(new Error('Error script migraciones'));};
+    s.src=url+'?action=migraciones&callback='+cb;
     document.head.appendChild(s);
     function clean(){clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);}
   });
@@ -774,6 +821,68 @@ function initMap(puntos, container){
     map.fitBounds(bounds);
   }
 }
+/* ── MIGRACIONES ── */
+let chartMigEstado=null, chartMigCanton=null;
+function renderMigraciones(){
+  if(!rowsMig.length){
+    document.getElementById('mig-kpis').innerHTML='<p style="font-size:12px;color:var(--text3);padding:10px 0">Datos de migraciones no disponibles</p>';
+    return;
+  }
+
+  const total   = rowsMig.length;
+  const migradas= rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('MIGRADA')&&!(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).length;
+  const pendMig = rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).length;
+  const totalCajas = rowsMig.reduce((s,r)=>s+parseInt(r['# CAJAS']||r['#CAJAS']||0),0);
+  const cajasPend  = rowsMig.reduce((s,r)=>s+parseInt(r['CAJAS PENDIENTES DE MIGRAR']||0),0);
+  const pct = total>0?Math.round(migradas/total*100):0;
+
+  // KPIs migraciones
+  document.getElementById('mig-kpis').innerHTML=`
+    <div class="kpi-card blue"><span class="kpi-icon">&#128257;</span><div class="kpi-val">${total}</div><div class="kpi-lbl">Total rutas</div><div class="kpi-sub">MPLS a preconect.</div></div>
+    <div class="kpi-card green"><span class="kpi-icon">&#9989;</span><div class="kpi-val">${migradas}</div><div class="kpi-lbl">Rutas migradas</div><div class="kpi-sub">${pct}% completado</div></div>
+    <div class="kpi-card amber"><span class="kpi-icon">&#9203;</span><div class="kpi-val">${pendMig}</div><div class="kpi-lbl">Pendientes migrar</div><div class="kpi-sub">${total-migradas-pendMig} otros estados</div></div>
+    <div class="kpi-card cyan"><span class="kpi-icon">&#128230;</span><div class="kpi-val">${totalCajas.toLocaleString()}</div><div class="kpi-lbl">Total cajas</div><div class="kpi-sub">${cajasPend} cajas pendientes</div></div>`;
+
+  // Chart estado de rutas
+  if(chartMigEstado){chartMigEstado.destroy();chartMigEstado=null;}
+  document.getElementById('wrap-mig-estado').innerHTML='<canvas id="ch-mig-estado"></canvas>';
+  const estadoMap={};
+  rowsMig.forEach(r=>{const e=(r['ESTADO']||'Sin estado').trim();estadoMap[e]=(estadoMap[e]||0)+1;});
+  const estadoData=Object.entries(estadoMap).sort((a,b)=>b[1]-a[1]);
+  const coloresEstado=['#4caf50','#f59e0b','#e63946','#1a73e8','#9c27b0','#00bcd4'];
+  chartMigEstado=new Chart(document.getElementById('ch-mig-estado'),{type:'doughnut',data:{
+    labels:estadoData.map(([k,v])=>{const pct2=Math.round(v/total*100);return(k.length>20?k.slice(0,18)+'…':k)+' ('+pct2+'%)';}),
+    datasets:[{data:estadoData.map(([,v])=>v),backgroundColor:coloresEstado,borderWidth:3,borderColor:'#fff',hoverOffset:6}]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12,padding:8}}}}});
+
+  // Chart por canton
+  if(chartMigCanton){chartMigCanton.destroy();chartMigCanton=null;}
+  document.getElementById('wrap-mig-canton').innerHTML='<canvas id="ch-mig-canton"></canvas>';
+  const cantonMap={};
+  rowsMig.forEach(r=>{const c=(r['CANTON']||'Sin canton').trim();cantonMap[c]=(cantonMap[c]||0)+1;});
+  const cantonData=Object.entries(cantonMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const coloresCanton=cantonData.map((_,i)=>'hsl('+(200+i*25)+',65%,'+(40+i*3)+'%)');
+  chartMigCanton=new Chart(document.getElementById('ch-mig-canton'),{type:'bar',data:{
+    labels:cantonData.map(([k])=>k),
+    datasets:[{data:cantonData.map(([,v])=>v),backgroundColor:coloresCanton,borderRadius:5,borderSkipped:false}]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}}});
+
+  // Tabla pendientes de migrar
+  const pendientes=rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).slice(0,10);
+  if(!pendientes.length){
+    document.getElementById('tb-mig-pend').innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay rutas pendientes de migrar</p>';
+  } else {
+    document.getElementById('tb-mig-pend').innerHTML='<div style="overflow-x:auto"><table class="dtable"><tr><th>Canton</th><th>Ruta</th><th># Cajas</th><th>Estado</th><th>Cajas pendientes</th></tr>'+
+      pendientes.map(r=>`<tr>
+        <td style="font-weight:600;color:var(--tnblue)">${r['CANTON']||'&mdash;'}</td>
+        <td style="font-size:11px">${(r['RUTA']||'&mdash;').slice(0,30)}</td>
+        <td style="text-align:center;font-weight:600">${r['# CAJAS']||r['#CAJAS']||'&mdash;'}</td>
+        <td><span class="tag a">${(r['ESTADO']||'').slice(0,25)}</span></td>
+        <td style="text-align:center;font-weight:600;color:var(--amber)">${r['CAJAS PENDIENTES DE MIGRAR']||'0'}</td>
+      </tr>`).join('')+'</table></div>';
+  }
+}
+
 /* ── MAPA LEAFLET — colores por PROCEDENCIA ── */
 let mapaLeaflet=null;
 const PROC_COLORS=['#e63946','#1a73e8','#ff9800','#4caf50','#9c27b0','#00bcd4','#ff5722','#8bc34a','#f06292','#00796b'];
