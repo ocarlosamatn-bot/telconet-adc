@@ -415,29 +415,48 @@ function setMes(m){
 /* ── CARGA DE DATOS ── */
 async function loadData(){
   setSS('spin','Conectando...');
+  setLoadMsg('Iniciando conexion con Google Sheets...');
   const url=SCRIPT_URL.split('?')[0];
+
+  // Verificar que la URL está configurada
+  if(!url||url.includes('TU_URL')){
+    setSS('err','Sin configurar');
+    setLoadMsg('ERROR: La URL del script no está configurada en el archivo HTML.');
+    return;
+  }
+
+  setLoadMsg('Cargando datos via JSONP... (URL: '+url.slice(0,60)+'...)');
   try{
     const data=await jsonp(url);
     if(data&&data.ok){ onLoaded(data); }
-    else throw new Error((data&&data.error)||'Error desconocido');
+    else throw new Error((data&&data.error)||'Respuesta sin ok=true');
   }catch(e1){
+    setLoadMsg('JSONP fallo ('+e1.message+'), intentando fetch directo...');
     try{
       const r=await fetch(url,{redirect:'follow'});
-      const data=JSON.parse(await r.text());
+      const txt=await r.text();
+      setLoadMsg('Respuesta recibida, parseando JSON...');
+      const data=JSON.parse(txt);
       if(data.ok){ onLoaded(data); }
-      else throw new Error(data.error||'Error');
+      else throw new Error(data.error||'Error en datos');
     }catch(e2){
-      setSS('err','Error de conexion');
-      document.getElementById('load-sub').textContent='Error: '+e2.message;
+      setSS('err','Error');
+      setLoadMsg('ERROR FINAL: '+e2.message+' | Verifica que el Apps Script este publicado como aplicacion web con acceso "Cualquiera".');
     }
   }
+}
+
+function setLoadMsg(msg){
+  const el=document.getElementById('load-sub');
+  if(el) el.textContent=msg;
+  console.log('[Telconet]', msg);
 }
 
 function jsonp(url){
   return new Promise((res,rej)=>{
     const cb='cb_'+Date.now();
     const s=document.createElement('script');
-    const t=setTimeout(()=>{clean();rej(new Error('Timeout'));},20000);
+    const t=setTimeout(()=>{clean();rej(new Error('Timeout (15s) - El script no respondio'));},15000);
     window[cb]=d=>{clean();res(d);};
     s.onerror=()=>{clean();rej(new Error('No se pudo cargar el script'));};
     s.src=url+'?callback='+cb;
