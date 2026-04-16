@@ -961,7 +961,8 @@ function filtrarTablaMig(tipo, valor, color){
     labelFiltro='Canton: <strong style="color:'+color+'">'+valor+'</strong> &mdash; '+rutas.length+' rutas';
   }
 
-  if(subtitulo) subtitulo.innerHTML=labelFiltro+(tipo!=='todos'?' <button onclick="filtrarTablaMig('todos','','')" style="margin-left:8px;background:var(--surface3);border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;font-family:Inter,sans-serif">&#10005; Limpiar</button>':'');
+  if(subtitulo) subtitulo.innerHTML=labelFiltro+(tipo!=='todos'?' <button id="btn-limpiar-mig" style="margin-left:8px;background:var(--surface3);border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;font-family:Inter,sans-serif">&#10005; Limpiar</button>':'');
+  if(tipo!=='todos'){ const bl=document.getElementById('btn-limpiar-mig'); if(bl) bl.onclick=()=>filtrarTablaMig('todos','',''); }
 
   if(!rutas.length){
     document.getElementById('tb-mig-pend').innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay rutas para este filtro</p>';
