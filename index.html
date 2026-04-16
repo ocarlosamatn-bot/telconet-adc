@@ -355,7 +355,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 /* ====================================================
    CONFIGURACION — pega aqui la URL de tu Apps Script
    ==================================================== */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzoJYyjkZDx_S_mISJJ2BMbeHjDdM1WPTnwbdXgJJMq8Lv2ggQmWYqJqtFLrjuI9tmLbQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuzrwhHNiQ5-1fM_c6iwN-kADLCCUo3Y78ziDJvDzPJP64rL6eIbN6zQ7ZhU_lJK9_6Q/exec';
 /* ==================================================== */
 
 let rows=[], headers=[], conv=[], chatOpen=false;
@@ -449,20 +449,27 @@ function jsonp(url){
 async function loadMigraciones(){
   const url=SCRIPT_URL.split('?')[0];
   try{
-    const data=await jsonp(url+'?action=migraciones');
+    const data=await jsonpAction(url,'migraciones');
     if(data&&data.ok){ rowsMig=data.rows; headersMig=data.headers; renderMigraciones(); }
-    else console.warn('Migraciones:', (data&&data.error)||'Error');
-  }catch(e){ console.warn('Error cargando migraciones:', e.message); }
+    else { console.warn('Migraciones error:', (data&&data.error)||'Sin datos'); mostrarErrorMig((data&&data.error)||'Sin datos'); }
+  }catch(e){ console.warn('Error cargando migraciones:', e.message); mostrarErrorMig(e.message); }
 }
 
-function jsonpParam(url, params){
+function mostrarErrorMig(msg){
+  const el=document.getElementById('mig-kpis');
+  if(el) el.innerHTML='<p style="font-size:12px;color:var(--red);padding:10px 0">&#9888; Error cargando migraciones: '+msg+'</p>';
+}
+
+// JSONP con action como parametro en la URL
+function jsonpAction(baseUrl, action){
   return new Promise((res,rej)=>{
     const cb='cbm_'+Date.now();
     const s=document.createElement('script');
-    const t=setTimeout(()=>{clean();rej(new Error('Timeout migraciones'));},20000);
+    const t=setTimeout(()=>{clean();rej(new Error('Timeout migraciones (20s)'));},20000);
     window[cb]=d=>{clean();res(d);};
-    s.onerror=()=>{clean();rej(new Error('Error script migraciones'));};
-    s.src=url+'?action=migraciones&callback='+cb;
+    s.onerror=()=>{clean();rej(new Error('No se pudo cargar el script de migraciones'));};
+    // URL con action y callback como parametros separados
+    s.src=baseUrl+'?action='+action+'&callback='+cb;
     document.head.appendChild(s);
     function clean(){clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);}
   });
