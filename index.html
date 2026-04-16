@@ -302,7 +302,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   </div>
   <div class="table-card" style="margin-bottom:20px">
     <div class="table-title">&#9888;&#65039; Rutas pendientes de migrar</div>
-    <div class="table-sub">Rutas con cajas pendientes de migracion a preconectorizada</div>
+    <div class="table-sub" id="sub-tb-mig">Mostrando todas las rutas pendientes</div>
     <div id="tb-mig-pend"></div>
   </div>
 
@@ -830,64 +830,141 @@ function initMap(puntos, container){
 }
 /* ── MIGRACIONES ── */
 let chartMigEstado=null, chartMigCanton=null;
+let estadoDataGlobal=[], cantonDataGlobal=[], coloresEstadoGlobal=[], coloresCantonGlobal=[];
+
 function renderMigraciones(){
   if(!rowsMig.length){
     document.getElementById('mig-kpis').innerHTML='<p style="font-size:12px;color:var(--text3);padding:10px 0">Datos de migraciones no disponibles</p>';
     return;
   }
 
-  const total   = rowsMig.length;
-  const migradas= rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('MIGRADA')&&!(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).length;
-  const pendMig = rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).length;
+  const total      = rowsMig.length;
+  const migradas   = rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('MIGRADA')&&!(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).length;
+  const pendMig    = rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).length;
   const totalCajas = rowsMig.reduce((s,r)=>s+parseInt(r['# CAJAS']||r['#CAJAS']||0),0);
   const cajasPend  = rowsMig.reduce((s,r)=>s+parseInt(r['CAJAS PENDIENTES DE MIGRAR']||0),0);
   const pct = total>0?Math.round(migradas/total*100):0;
 
-  // KPIs migraciones
+  // ── KPIs — cajas pendientes destacadas ──
   document.getElementById('mig-kpis').innerHTML=`
     <div class="kpi-card blue"><span class="kpi-icon">&#128257;</span><div class="kpi-val">${total}</div><div class="kpi-lbl">Total rutas</div><div class="kpi-sub">MPLS a preconect.</div></div>
     <div class="kpi-card green"><span class="kpi-icon">&#9989;</span><div class="kpi-val">${migradas}</div><div class="kpi-lbl">Rutas migradas</div><div class="kpi-sub">${pct}% completado</div></div>
-    <div class="kpi-card amber"><span class="kpi-icon">&#9203;</span><div class="kpi-val">${pendMig}</div><div class="kpi-lbl">Pendientes migrar</div><div class="kpi-sub">${total-migradas-pendMig} otros estados</div></div>
-    <div class="kpi-card cyan"><span class="kpi-icon">&#128230;</span><div class="kpi-val">${totalCajas.toLocaleString()}</div><div class="kpi-lbl">Total cajas</div><div class="kpi-sub">${cajasPend} cajas pendientes</div></div>`;
+    <div class="kpi-card amber"><span class="kpi-icon">&#9203;</span><div class="kpi-val">${pendMig}</div><div class="kpi-lbl">Rutas pendientes</div><div class="kpi-sub">de migrar</div></div>
+    <div class="kpi-card red" style="border:2px solid var(--red);position:relative;overflow:visible">
+      <div style="position:absolute;top:-8px;right:-8px;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.5px;text-transform:uppercase">CRITICO</div>
+      <span class="kpi-icon">&#128230;</span>
+      <div class="kpi-val" style="font-size:34px">${cajasPend.toLocaleString()}</div>
+      <div class="kpi-lbl">Cajas pendientes</div>
+      <div class="kpi-sub">de ${totalCajas.toLocaleString()} cajas totales</div>
+    </div>`;
 
-  // Chart estado de rutas
+  // ── Dona estado — click filtra tabla ──
   if(chartMigEstado){chartMigEstado.destroy();chartMigEstado=null;}
   document.getElementById('wrap-mig-estado').innerHTML='<canvas id="ch-mig-estado"></canvas>';
   const estadoMap={};
   rowsMig.forEach(r=>{const e=(r['ESTADO']||'Sin estado').trim();estadoMap[e]=(estadoMap[e]||0)+1;});
-  const estadoData=Object.entries(estadoMap).sort((a,b)=>b[1]-a[1]);
-  const coloresEstado=['#4caf50','#f59e0b','#e63946','#1a73e8','#9c27b0','#00bcd4'];
-  chartMigEstado=new Chart(document.getElementById('ch-mig-estado'),{type:'doughnut',data:{
-    labels:estadoData.map(([k,v])=>{const pct2=Math.round(v/total*100);return(k.length>20?k.slice(0,18)+'…':k)+' ('+pct2+'%)';}),
-    datasets:[{data:estadoData.map(([,v])=>v),backgroundColor:coloresEstado,borderWidth:3,borderColor:'#fff',hoverOffset:6}]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12,padding:8}}}}});
+  estadoDataGlobal=Object.entries(estadoMap).sort((a,b)=>b[1]-a[1]);
+  coloresEstadoGlobal=['#4caf50','#f59e0b','#e63946','#1a73e8','#9c27b0','#00bcd4'];
 
-  // Chart por canton
+  chartMigEstado=new Chart(document.getElementById('ch-mig-estado'),{
+    type:'doughnut',
+    data:{
+      labels:estadoDataGlobal.map(([k,v])=>{const p=Math.round(v/total*100);return(k.length>20?k.slice(0,18)+'…':k)+' ('+p+'%)';}),
+      datasets:[{data:estadoDataGlobal.map(([,v])=>v),backgroundColor:coloresEstadoGlobal,borderWidth:3,borderColor:'#fff',hoverOffset:8}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10},boxWidth:12,padding:8}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.toLocaleString()+' rutas'}}
+      },
+      onClick:(evt,els)=>{
+        if(!els.length) return;
+        const idx=els[0].index;
+        const estadoSel=estadoDataGlobal[idx][0];
+        const color=coloresEstadoGlobal[idx%coloresEstadoGlobal.length];
+        filtrarTablaMig('estado', estadoSel, color);
+      }
+    }
+  });
+
+  // ── Barras canton — click filtra tabla ──
   if(chartMigCanton){chartMigCanton.destroy();chartMigCanton=null;}
   document.getElementById('wrap-mig-canton').innerHTML='<canvas id="ch-mig-canton"></canvas>';
   const cantonMap={};
   rowsMig.forEach(r=>{const c=(r['CANTON']||'Sin canton').trim();cantonMap[c]=(cantonMap[c]||0)+1;});
-  const cantonData=Object.entries(cantonMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const coloresCanton=cantonData.map((_,i)=>'hsl('+(200+i*25)+',65%,'+(40+i*3)+'%)');
-  chartMigCanton=new Chart(document.getElementById('ch-mig-canton'),{type:'bar',data:{
-    labels:cantonData.map(([k])=>k),
-    datasets:[{data:cantonData.map(([,v])=>v),backgroundColor:coloresCanton,borderRadius:5,borderSkipped:false}]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}}});
+  cantonDataGlobal=Object.entries(cantonMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  coloresCantonGlobal=cantonDataGlobal.map((_,i)=>'hsl('+(200+i*25)+',65%,'+(40+i*3)+'%)');
 
-  // Tabla pendientes de migrar
-  const pendientes=rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')).slice(0,10);
-  if(!pendientes.length){
-    document.getElementById('tb-mig-pend').innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay rutas pendientes de migrar</p>';
-  } else {
-    document.getElementById('tb-mig-pend').innerHTML='<div style="overflow-x:auto"><table class="dtable"><tr><th>Canton</th><th>Ruta</th><th># Cajas</th><th>Estado</th><th>Cajas pendientes</th></tr>'+
-      pendientes.map(r=>`<tr>
-        <td style="font-weight:600;color:var(--tnblue)">${r['CANTON']||'&mdash;'}</td>
-        <td style="font-size:11px">${(r['RUTA']||'&mdash;').slice(0,30)}</td>
-        <td style="text-align:center;font-weight:600">${r['# CAJAS']||r['#CAJAS']||'&mdash;'}</td>
-        <td><span class="tag a">${(r['ESTADO']||'').slice(0,25)}</span></td>
-        <td style="text-align:center;font-weight:600;color:var(--amber)">${r['CAJAS PENDIENTES DE MIGRAR']||'0'}</td>
-      </tr>`).join('')+'</table></div>';
+  chartMigCanton=new Chart(document.getElementById('ch-mig-canton'),{
+    type:'bar',
+    data:{
+      labels:cantonDataGlobal.map(([k])=>k),
+      datasets:[{data:cantonDataGlobal.map(([,v])=>v),backgroundColor:coloresCantonGlobal,borderRadius:5,borderSkipped:false}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y.toLocaleString()+' rutas'}}
+      },
+      scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}},
+      onClick:(evt,els)=>{
+        if(!els.length) return;
+        const idx=els[0].index;
+        const cantonSel=cantonDataGlobal[idx][0];
+        const color=coloresCantonGlobal[idx%coloresCantonGlobal.length];
+        filtrarTablaMig('canton', cantonSel, color);
+      }
+    }
+  });
+
+  // Tabla inicial — todas las rutas pendientes
+  filtrarTablaMig('todos','','' );
+}
+
+// ── Función que filtra la tabla según click en gráfica ──
+function filtrarTablaMig(tipo, valor, color){
+  const titulo=document.querySelector('.table-card .table-title');
+  const subtitulo=document.getElementById('sub-tb-mig');
+
+  let rutas=[];
+  let labelFiltro='';
+
+  if(tipo==='todos'){
+    rutas=rowsMig.filter(r=>(r['ESTADO']||'').toUpperCase().includes('PENDIENTE'));
+    labelFiltro='Mostrando todas las rutas pendientes';
+  } else if(tipo==='estado'){
+    rutas=rowsMig.filter(r=>(r['ESTADO']||'').trim()===valor);
+    labelFiltro='Estado: <strong style="color:'+color+'">'+valor+'</strong> &mdash; '+rutas.length+' rutas';
+  } else if(tipo==='canton'){
+    rutas=rowsMig.filter(r=>(r['CANTON']||'').trim()===valor);
+    labelFiltro='Canton: <strong style="color:'+color+'">'+valor+'</strong> &mdash; '+rutas.length+' rutas';
   }
+
+  if(subtitulo) subtitulo.innerHTML=labelFiltro+(tipo!=='todos'?' <button onclick="filtrarTablaMig('todos','','')" style="margin-left:8px;background:var(--surface3);border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;font-family:Inter,sans-serif">&#10005; Limpiar</button>':'');
+
+  if(!rutas.length){
+    document.getElementById('tb-mig-pend').innerHTML='<p style="font-size:12px;color:var(--green);padding:10px 0">&#9989; No hay rutas para este filtro</p>';
+    return;
+  }
+
+  const totalCajasFilt=rutas.reduce((s,r)=>s+parseInt(r['CAJAS PENDIENTES DE MIGRAR']||0),0);
+  document.getElementById('tb-mig-pend').innerHTML=
+    '<div style="overflow-x:auto">'+
+    (totalCajasFilt>0?'<div style="background:var(--red-light);border-left:3px solid var(--red);border-radius:0 6px 6px 0;padding:8px 14px;margin-bottom:10px;font-size:12px;color:var(--red)"><strong>'+totalCajasFilt.toLocaleString()+' cajas pendientes</strong> en las rutas filtradas</div>':'')+
+    '<table class="dtable"><tr><th>Canton</th><th>Ruta</th><th># Cajas</th><th>Estado</th><th style="color:#ffd54f">&#9888; Cajas pendientes</th></tr>'+
+    rutas.map(r=>{
+      const cp=parseInt(r['CAJAS PENDIENTES DE MIGRAR']||0);
+      return `<tr>
+        <td style="font-weight:600;color:var(--tnblue)">${r['CANTON']||'&mdash;'}</td>
+        <td style="font-size:11px">${(r['RUTA']||'&mdash;').slice(0,32)}</td>
+        <td style="text-align:center;font-weight:600">${r['# CAJAS']||r['#CAJAS']||'&mdash;'}</td>
+        <td><span class="tag ${(r['ESTADO']||'').toUpperCase().includes('MIGRADA')&&!(r['ESTADO']||'').toUpperCase().includes('PENDIENTE')?'g':'a'}">${(r['ESTADO']||'').slice(0,28)}</span></td>
+        <td style="text-align:center;font-size:14px;font-weight:700;color:${cp>0?'var(--red)':'var(--green)'}">${cp>0?cp:'&#9989;'}</td>
+      </tr>`;
+    }).join('')+
+    '</table></div>';
 }
 
 /* ── MAPA LEAFLET — colores por PROCEDENCIA ── */
