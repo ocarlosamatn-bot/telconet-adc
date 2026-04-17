@@ -501,8 +501,14 @@ function navTo(sec){
     if(sec==='reincidencias') buildReincidencias();
     else if(sec==='mapa') buildMapa();
     }
-  if(rowsMig.length && sec==='mpls') renderMigraciones();
-  if(rowsOlt.length && sec==='olt620') renderOlt620();
+  if(sec==='mpls'){
+    if(rowsMig.length) renderMigraciones();
+    else { loadMigraciones().then(()=>{ if(rowsMig.length) renderMigraciones(); else document.getElementById('mig-kpis').innerHTML='<p style="color:var(--red);font-size:12px;padding:10px">&#9888; No se pudo cargar. Verifica que el Apps Script tenga la accion migraciones publicada.</p>'; }); }
+  }
+  if(sec==='olt620'){
+    if(rowsOlt.length) renderOlt620();
+    else { loadOlt620().then(()=>{ if(rowsOlt.length) renderOlt620(); else document.getElementById('olt-kpis').innerHTML='<p style="color:var(--red);font-size:12px;padding:10px">&#9888; No se pudo cargar. Verifica que el Apps Script tenga la accion olt620 publicada.</p>'; }); }
+  }
 }
 
 /* ── DROPDOWNS ── */
@@ -671,8 +677,8 @@ function buildChartCuad(rFilt){
   if(chartCuad){chartCuad.destroy();chartCuad=null;}
   document.getElementById('wrap-cuad').innerHTML='<canvas id="ch-cuad"></canvas>';
   const d=grp(rFilt.filter(r=>(r['ESTADO']||'').trim().toUpperCase()==='REALIZADO'),'CUADRILLA',8)
-    .filter(([k])=>/CUE\s+PROV\s+CUE\s+ADC/i.test(k));
-  if(!d.length){document.getElementById('wrap-cuad').innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin datos de cuadrillas ADC realizados</p>';return;}
+    .filter(([k])=>k&&k.trim()!=='');
+  if(!d.length){document.getElementById('wrap-cuad').innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px 0;text-align:center">Sin trabajos realizados para el periodo</p>';return;}
   const cols=d.map((_,i)=>`hsl(${210+i*18},70%,${38+i*4}%)`);
   chartCuad=new Chart(document.getElementById('ch-cuad'),{type:'bar',data:{labels:d.map(([k])=>k.length>22?k.slice(0,20)+'…':k),datasets:[{data:d.map(([,v])=>v),backgroundColor:cols,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y+' trabajos'}}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:35}}}}});
 }
@@ -770,7 +776,7 @@ function buildReincidencias(){
     datasets:[{label:cap(m1),data:data.map(d=>d.m1),backgroundColor:'rgba(0,71,190,.75)',borderRadius:3,borderSkipped:false},{label:cap(m2),data:data.map(d=>d.m2),backgroundColor:'rgba(230,57,70,.75)',borderRadius:3,borderSkipped:false}]
   },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}}},scales:{y:{ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:8},maxRotation:40}}}}});
   document.getElementById('tb-reinc').innerHTML='<table class="dtable" style="font-size:11px"><tr><th>Caja / Ruta</th><th style="text-align:center">'+cap(m1)+'</th><th style="text-align:center">'+cap(m2)+'</th><th style="text-align:center">Total</th></tr>'+
-    data.map(d=>`<tr><td style="font-size:10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.caja}">${d.caja}</td><td style="text-align:center;color:var(--tnblue);font-weight:600">${d.m1}</td><td style="text-align:center;color:var(--red);font-weight:600">${d.m2}</td><td style="text-align:center;font-weight:700;background:var(--amber-light);color:var(--amber)">${d.total}</td></tr>`).join('')+'</table>';
+    data.map(d=>`<tr><td style="font-size:10px;word-break:break-all;max-width:280px" title="${d.caja}">${d.caja}</td><td style="text-align:center;color:var(--tnblue);font-weight:600">${d.m1}</td><td style="text-align:center;color:var(--red);font-weight:600">${d.m2}</td><td style="text-align:center;font-weight:700;background:var(--amber-light);color:var(--amber)">${d.total}</td></tr>`).join('')+'</table>';
 }
 
 /* ── SECCION MAPA ── */
@@ -910,7 +916,17 @@ function renderOlt620(){
   const eMap={};rowsOlt.forEach(r=>{let e=(r[colE]||'Sin estado').trim().toUpperCase();if(e.includes('INVENTARI')&&!e.includes('OCESO'))e='INVENTARIADO';else if(e.includes('OCESO')||e.includes('PROCESO'))e='EN PROCESO';else if(e.includes('PENDIENTE'))e='PENDIENTE';eMap[e]=(eMap[e]||0)+1;});
   const eData=Object.entries(eMap).sort((a,b)=>b[1]-a[1]);
   const eCols={'INVENTARIADO':'#4caf50','EN PROCESO':'#ff9800','PENDIENTE':'#e63946'};
-  chartOltEstado=new Chart(document.getElementById('ch-olt-estado'),{type:'doughnut',data:{labels:eData.map(([k,v])=>k+' ('+Math.round(v/total*100)+'%)'),datasets:[{data:eData.map(([,v])=>v),backgroundColor:eData.map(([k])=>eCols[k]||'#90a4ae'),borderWidth:3,borderColor:'#fff',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:14,padding:10}},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.toLocaleString()+' nodos'}}}}});
+  const eDataGlobal=eData; const eColsMap=eCols;
+chartOltEstado=new Chart(document.getElementById('ch-olt-estado'),{type:'doughnut',data:{labels:eData.map(([k,v])=>k+' ('+Math.round(v/total*100)+'%)'),datasets:[{data:eData.map(([,v])=>v),backgroundColor:eData.map(([k])=>eCols[k]||'#90a4ae'),borderWidth:3,borderColor:'#fff',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:14,padding:10}},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.toLocaleString()+' nodos'}}},
+  onClick:(evt,els)=>{
+    if(!els.length){ filtrarTablaOlt('todos','',''); return; }
+    const idx=els[0].index;
+    const estadoSel=eDataGlobal[idx][0];
+    const colorSel=eData.map(([k])=>eColsMap[k]||'#90a4ae')[idx];
+    filtrarTablaOlt('estado', estadoSel, colorSel);
+  }
+}});
   if(chartOltCanton){chartOltCanton.destroy();chartOltCanton=null;}
   document.getElementById('wrap-olt-canton').innerHTML='<canvas id="ch-olt-canton"></canvas>';
   const cMap={};rowsOlt.forEach(r=>{const c=(r[colC]||'Sin canton').trim();cMap[c]=(cMap[c]||0)+parseInt(r[colPd]||0);});
@@ -920,8 +936,8 @@ function renderOlt620(){
   document.getElementById('wrap-olt-nodos').innerHTML='<canvas id="ch-olt-nodos"></canvas>';
   const nData=[...rowsOlt].map(r=>({n:(r[colN]||'').trim(),pd:parseInt(r[colPd]||0),rf:parseInt(r[colRf]||0)})).filter(d=>d.pd>0).sort((a,b)=>b.pd-a.pd).slice(0,15);
   chartOltNodos=new Chart(document.getElementById('ch-olt-nodos'),{type:'bar',data:{labels:nData.map(d=>d.n),datasets:[{label:'Pendientes',data:nData.map(d=>d.pd),backgroundColor:'rgba(230,57,70,.8)',borderRadius:4,borderSkipped:false},{label:'Migrados',data:nData.map(d=>Math.max(0,d.rf-d.pd)),backgroundColor:'rgba(76,175,80,.6)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}}},scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:10},maxRotation:35}},y:{stacked:true,ticks:{font:{size:10}}}}}});
-  const sorted=[...rowsOlt].sort((a,b)=>parseInt(b[colPd]||0)-parseInt(a[colPd]||0));
-  document.getElementById('tb-olt').innerHTML='<table class="dtable"><tr><th>Canton</th><th>Nodo</th><th>#OLTs</th><th>#Racks</th><th>Reflejos totales</th><th>Estado</th><th style="color:#ffd54f">&#9888; Reflejos pendientes</th></tr>'+
+  filtrarTablaOlt('todos','','');
+  const sorted_unused=null;//'<table class="dtable"><tr><th>Canton</th><th>Nodo</th><th>#OLTs</th><th>#Racks</th><th>Reflejos totales</th><th>Estado</th><th style="color:#ffd54f">&#9888; Reflejos pendientes</th></tr>'+
     sorted.map(r=>{let e=(r[colE]||'').trim().toUpperCase();let tc='a',tl=r[colE]||'';if(e.includes('INVENTARI')&&!e.includes('OCESO')){tc='g';tl='INVENTARIADO';}else if(e.includes('OCESO')||e.includes('PROCESO')){tc='b';tl='EN PROCESO';}const pd=parseInt(r[colPd]||0);return`<tr><td style="font-weight:600;color:var(--tnblue);font-size:11px">${r[colC]||'&mdash;'}</td><td style="font-size:11px;font-weight:500">${r[colN]||'&mdash;'}</td><td style="text-align:center">${r[colO]||'0'}</td><td style="text-align:center">${r[colRk]||'0'}</td><td style="text-align:center;font-weight:600">${r[colRf]||'0'}</td><td><span class="tag ${tc}">${tl}</span></td><td style="text-align:center;font-size:14px;font-weight:700;color:${pd>0?'var(--red)':'var(--green)'}">${pd>0?pd:'&#9989;'}</td></tr>`;}).join('')+'</table>';
 }
 
@@ -985,6 +1001,51 @@ function initCanvas(){
     nodes.forEach(n=>{const g=Math.sin(t*n.pu+n.ph),a=.1+g*.05,r=n.r+g*.3;const gr=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*4);gr.addColorStop(0,n.c+(a*.8)+')');gr.addColorStop(1,n.c+'0)');ctx.beginPath();ctx.arc(n.x,n.y,r*4,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill();ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.fillStyle=n.c+(a+.1)+')';ctx.fill();n.x+=n.vx;n.y+=n.vy;if(n.x<0||n.x>W)n.vx*=-1;if(n.y<0||n.y>H)n.vy*=-1;});
     requestAnimationFrame(draw);}
   window.addEventListener('resize',resize);resize();draw();
+}
+/* ── FILTRO TABLA OLT 620 ── */
+function filtrarTablaOlt(tipo, valor, color){
+  if(!rowsOlt.length) return;
+  const colE=headersOlt.find(h=>h.toUpperCase().includes('ESTADO'))||'ESTADO';
+  const colC=headersOlt.find(h=>h.toUpperCase().includes('CANTON')||h.toUpperCase().includes('CANTÓN'))||'CANTON';
+  const colN=headersOlt.find(h=>h.toUpperCase().includes('NODO'))||'NODO';
+  const colO=headersOlt.find(h=>h.includes('#OLT')||h.toUpperCase().includes('OLTS'))||'#OLTs';
+  const colRk=headersOlt.find(h=>h.includes('#RACK')||h.toUpperCase().includes('RACKS'))||'#RACKS';
+  const colRf=headersOlt.find(h=>h.toUpperCase().includes('REFLEJO')&&(h.toUpperCase().includes('48')||h.toUpperCase().includes('REALIZAR')))||'REFLEJO DE 48 A REALIZAR';
+  const colPd=headersOlt.find(h=>h.toUpperCase().includes('REFLEJOS')&&h.toUpperCase().includes('PENDIENTE'))||'REFLEJOS PENDIENTES';
+  const sub=document.getElementById('sub-olt-tabla');
+
+  let datos=[];
+  if(tipo==='todos'){
+    datos=[...rowsOlt].sort((a,b)=>parseInt(b[colPd]||0)-parseInt(a[colPd]||0));
+    if(sub) sub.textContent='Ordenado por reflejos pendientes';
+  } else if(tipo==='estado'){
+    let estadoNorm=valor.toUpperCase();
+    datos=rowsOlt.filter(r=>{
+      let e=(r[colE]||'').trim().toUpperCase();
+      if(e.includes('INVENTARI')&&!e.includes('OCESO')) e='INVENTARIADO';
+      else if(e.includes('OCESO')||e.includes('PROCESO')) e='EN PROCESO';
+      else if(e.includes('PENDIENTE')) e='PENDIENTE';
+      return e===estadoNorm;
+    }).sort((a,b)=>parseInt(b[colPd]||0)-parseInt(a[colPd]||0));
+    if(sub) sub.innerHTML='Estado: <strong style="color:'+color+'">'+valor+'</strong> — '+datos.length+' nodos <button id="btn-lim-olt" style="margin-left:8px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">&#10005; Limpiar</button>';
+  }
+
+  if(!datos.length){
+    document.getElementById('tb-olt').innerHTML='<p style="font-size:12px;color:var(--text3);padding:10px">Sin nodos para este filtro</p>';
+    const bl=document.getElementById('btn-lim-olt');if(bl)bl.onclick=()=>filtrarTablaOlt('todos','','');
+    return;
+  }
+
+  document.getElementById('tb-olt').innerHTML='<table class="dtable"><tr><th>Canton</th><th>Nodo</th><th>#OLTs</th><th>#Racks</th><th>Reflejos totales</th><th>Estado</th><th style="color:#ffd54f">&#9888; Reflejos pendientes</th></tr>'+
+    datos.map(r=>{
+      let e=(r[colE]||'').trim().toUpperCase();let tc='a',tl=r[colE]||'';
+      if(e.includes('INVENTARI')&&!e.includes('OCESO')){tc='g';tl='INVENTARIADO';}
+      else if(e.includes('OCESO')||e.includes('PROCESO')){tc='b';tl='EN PROCESO';}
+      const pd=parseInt(r[colPd]||0);
+      return '<tr><td style="font-weight:600;color:var(--tnblue);font-size:11px">'+(r[colC]||'&mdash;')+'</td><td style="font-size:11px;font-weight:500">'+(r[colN]||'&mdash;')+'</td><td style="text-align:center">'+(r[colO]||'0')+'</td><td style="text-align:center">'+(r[colRk]||'0')+'</td><td style="text-align:center;font-weight:600">'+(r[colRf]||'0')+'</td><td><span class="tag '+tc+'">'+tl+'</span></td><td style="text-align:center;font-size:14px;font-weight:700;color:'+(pd>0?'var(--red)':'var(--green)')+'">'+( pd>0?pd:'&#9989;')+'</td></tr>';
+    }).join('')+'</table>';
+
+  const bl=document.getElementById('btn-lim-olt');if(bl)bl.onclick=()=>filtrarTablaOlt('todos','','');
 }
 </script>
 </body>
