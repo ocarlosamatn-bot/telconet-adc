@@ -400,10 +400,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
         </div>
 
       </div>
-      <div class="table-card">
-        <div class="table-title">&#128203; Detalle de nodos OLT 620</div>
-        <div class="table-sub" id="sub-olt-tabla">Ordenado por reflejos pendientes</div>
-        <div id="tb-olt" style="overflow-x:auto"></div>
+      <div style="margin-top:4px">
+        <div style="font-size:13px;font-weight:600;color:var(--tnblue);margin-bottom:4px">&#128203; Detalle por canton</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px" id="sub-olt-tabla">Estado de migracion por canton</div>
+        <div id="tb-olt"></div>
       </div>
     </div>
 
@@ -1146,25 +1146,23 @@ function initCanvas(){
 /* ── FILTRO TABLA OLT 620 ── */
 function filtrarTablaOlt(tipo, valor, color){
   if(!rowsOlt.length) return;
-  // Verificar que los datos son de OLT 620 (deben tener columna #OLTs o REFLEJO)
   const esOlt=headersOlt.some(h=>h.toUpperCase().includes('OLT')||h.toUpperCase().includes('REFLEJO'));
   if(!esOlt){ console.error('[OLT] headersOlt no corresponde a OLT 620:', headersOlt); return; }
   const colE=headersOlt.find(h=>h.toUpperCase().includes('ESTADO'))||headersOlt[3]||'ESTADO';
   const colC=headersOlt.find(h=>h.toUpperCase().includes('CANTON')||h.toUpperCase().includes('CANTÓN'))||headersOlt[0]||'CANTON';
   const colN=headersOlt.find(h=>h.toUpperCase().includes('NODO'))||headersOlt[1]||'NODO';
   const colO=headersOlt.find(h=>h.toUpperCase().includes('OLT')&&h.includes('#'))||headersOlt[2]||'#OLTs';
-  const colRk=headersOlt.find(h=>h.toUpperCase().includes('RACK')&&h.includes('#'))||headersOlt[3]||'#RACKS';
   const colRf=headersOlt.find(h=>h.toUpperCase().includes('REFLEJO')&&(h.toUpperCase().includes('48')||h.toUpperCase().includes('REALIZAR')))||headersOlt[4]||'REFLEJO DE 48 A REALIZAR';
   const colPd=headersOlt.find(h=>h.toUpperCase().includes('PENDIENTE')&&(h.toUpperCase().includes('REFLEJO')||h.toUpperCase().includes('CAJA')))||headersOlt[headersOlt.length-1]||'REFLEJOS PENDIENTES';
   const sub=document.getElementById('sub-olt-tabla');
 
   let datos=[];
   if(tipo==='todos'){
-    datos=[...rowsOlt].sort((a,b)=>parseInt(b[colPd]||0)-parseInt(a[colPd]||0));
-    if(sub) sub.textContent='Ordenado por reflejos pendientes';
+    datos=[...rowsOlt];
+    if(sub) sub.textContent='Estado de migracion por canton';
   } else if(tipo==='canton'){
-    datos=rowsOlt.filter(r=>(r[colC]||'').trim()===valor).sort((a,b)=>parseInt(b[colPd]||0)-parseInt(a[colPd]||0));
-    if(sub) sub.innerHTML='Canton: <strong style="color:'+color+'">'+valor+'</strong> — '+datos.length+' nodos <button id="btn-lim-olt" style="margin-left:8px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">&#10005; Limpiar</button>';
+    datos=rowsOlt.filter(r=>(r[colC]||'').trim()===valor);
+    if(sub) sub.innerHTML='Canton: <strong style="color:'+color+'">'+valor+'</strong> &mdash; '+datos.length+' nodos <button id="btn-lim-olt" style="margin-left:8px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">&#10005; Ver todos</button>';
   } else if(tipo==='estado'){
     let estadoNorm=valor.toUpperCase();
     datos=rowsOlt.filter(r=>{
@@ -1173,26 +1171,100 @@ function filtrarTablaOlt(tipo, valor, color){
       else if(e.includes('OCESO')||e.includes('PROCESO')) e='EN PROCESO';
       else if(e.includes('PENDIENTE')) e='PENDIENTE';
       return e===estadoNorm;
-    }).sort((a,b)=>parseInt(b[colPd]||0)-parseInt(a[colPd]||0));
-    if(sub) sub.innerHTML='Estado: <strong style="color:'+color+'">'+valor+'</strong> — '+datos.length+' nodos <button id="btn-lim-olt" style="margin-left:8px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">&#10005; Limpiar</button>';
+    });
+    if(sub) sub.innerHTML='Estado: <strong style="color:'+color+'">'+valor+'</strong> &mdash; '+datos.length+' nodos <button id="btn-lim-olt" style="margin-left:8px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">&#10005; Ver todos</button>';
   }
 
   if(!datos.length){
     document.getElementById('tb-olt').innerHTML='<p style="font-size:12px;color:var(--text3);padding:10px">Sin nodos para este filtro</p>';
-    const bl=document.getElementById('btn-lim-olt');if(bl)bl.onclick=()=>filtrarTablaOlt('todos','','');
     return;
   }
 
-  document.getElementById('tb-olt').innerHTML='<table class="dtable"><tr><th>Canton</th><th>Nodo</th><th>#OLTs</th><th>#Racks</th><th>Reflejos totales</th><th>Estado</th><th style="color:#ffd54f">&#9888; Reflejos pendientes</th></tr>'+
-    datos.map(r=>{
-      let e=(r[colE]||'').trim().toUpperCase();let tc='a',tl=r[colE]||'';
-      if(e.includes('INVENTARI')&&!e.includes('OCESO')){tc='g';tl='INVENTARIADO';}
-      else if(e.includes('OCESO')||e.includes('PROCESO')){tc='b';tl='EN PROCESO';}
-      const pd=parseInt(r[colPd]||0);
-      return '<tr><td style="font-weight:600;color:var(--tnblue);font-size:11px">'+(r[colC]||'&mdash;')+'</td><td style="font-size:11px;font-weight:500">'+(r[colN]||'&mdash;')+'</td><td style="text-align:center">'+(r[colO]||'0')+'</td><td style="text-align:center">'+(r[colRk]||'0')+'</td><td style="text-align:center;font-weight:600">'+(r[colRf]||'0')+'</td><td><span class="tag '+tc+'">'+tl+'</span></td><td style="text-align:center;font-size:14px;font-weight:700;color:'+(pd>0?'var(--red)':'var(--green)')+'">'+( pd>0?pd:'&#9989;')+'</td></tr>';
-    }).join('')+'</table>';
+  // Agrupar por cantón
+  const cantones={};
+  datos.forEach(r=>{
+    const c=(r[colC]||'Sin canton').trim();
+    if(!cantones[c]) cantones[c]={nodos:[],totalRf:0,totalPd:0};
+    const pd=parseInt(r[colPd]||0);
+    const rf=parseInt(r[colRf]||0);
+    const olts=parseInt(r[colO]||0);
+    let estado=(r[colE]||'').trim().toUpperCase();
+    if(estado.includes('INVENTARI')&&!estado.includes('OCESO')) estado='INVENTARIADO';
+    else if(estado.includes('OCESO')||estado.includes('PROCESO')) estado='EN PROCESO';
+    else if(estado.includes('PENDIENTE')) estado='PENDIENTE';
+    cantones[c].nodos.push({nodo:(r[colN]||'').trim(),estado,pd,rf,olts});
+    cantones[c].totalRf+=rf;
+    cantones[c].totalPd+=pd;
+  });
 
-  const bl=document.getElementById('btn-lim-olt');if(bl)bl.onclick=()=>filtrarTablaOlt('todos','','');
+  // Ordenar cantones por pendientes desc
+  const cantonList=Object.entries(cantones).sort((a,b)=>b[1].totalPd-a[1].totalPd);
+
+  const estadoColor={
+    'INVENTARIADO':'#0a7c52','EN PROCESO':'#8a5800','PENDIENTE':'#a01e1e'
+  };
+  const estadoBg={
+    'INVENTARIADO':'#e4f5ef','EN PROCESO':'#fdf3dc','PENDIENTE':'#fde8e8'
+  };
+  const barColor=pd=>pd===0?'#0a7c52':'#a01e1e';
+
+  let html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">';
+
+  cantonList.forEach(([canton, info])=>{
+    const pct=info.totalRf>0?Math.round((info.totalRf-info.totalPd)/info.totalRf*100):100;
+    const totalNodos=info.nodos.length;
+    const nodosPend=info.nodos.filter(n=>n.estado==='PENDIENTE').length;
+    const nodosInv=info.nodos.filter(n=>n.estado==='INVENTARIADO').length;
+    const nodosProc=info.nodos.filter(n=>n.estado==='EN PROCESO').length;
+    const barW=Math.max(2,pct);
+    const barC=pct===100?'#0a7c52':pct>50?'#8a5800':'#a01e1e';
+
+    // Nodos detalle (max 5 visibles)
+    const nodosHtml=info.nodos
+      .sort((a,b)=>b.pd-a.pd)
+      .slice(0,6)
+      .map(n=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text2);flex:1">${n.nodo}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span style="font-size:10px;background:${estadoBg[n.estado]||'#f5f6fa'};color:${estadoColor[n.estado]||'#666'};padding:1px 6px;border-radius:3px;font-weight:600">${n.estado}</span>
+          <span style="font-size:12px;font-weight:700;color:${n.pd>0?'var(--red)':'var(--green)'};min-width:20px;text-align:right">${n.pd>0?n.pd:'&#9989;'}</span>
+        </div>
+      </div>`).join('');
+    const extra=info.nodos.length>6?'<div style="font-size:10px;color:var(--text3);padding:5px 0;text-align:center">+'+( info.nodos.length-6)+' nodos mas</div>':'';
+
+    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--tnblue)">${canton}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${totalNodos} nodo${totalNodos!==1?'s':''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:700;color:${info.totalPd>0?'var(--red)':'var(--green)'};line-height:1">${info.totalPd>0?info.totalPd:'&#9989;'}</div>
+          <div style="font-size:10px;color:var(--text3)">reflejos pend.</div>
+        </div>
+      </div>
+      <div style="background:var(--surface3);border-radius:4px;height:6px;margin-bottom:8px;overflow:hidden">
+        <div style="height:100%;border-radius:4px;background:${barC};width:${barW}%;transition:width .4s"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:10px;display:flex;justify-content:space-between">
+        <span>${pct}% migrado</span>
+        <span>${info.totalRf} reflejos totales</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        ${nodosInv>0?'<span style="font-size:10px;background:var(--green-light);color:var(--green);padding:2px 7px;border-radius:4px;font-weight:600">&#9989; '+nodosInv+' inv.</span>':''}
+        ${nodosProc>0?'<span style="font-size:10px;background:var(--amber-light);color:var(--amber);padding:2px 7px;border-radius:4px;font-weight:600">&#9881; '+nodosProc+' en proc.</span>':''}
+        ${nodosPend>0?'<span style="font-size:10px;background:var(--red-light);color:var(--red);padding:2px 7px;border-radius:4px;font-weight:600">&#9888; '+nodosPend+' pend.</span>':''}
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:8px">
+        ${nodosHtml}${extra}
+      </div>
+    </div>`;
+  });
+
+  html+='</div>';
+  document.getElementById('tb-olt').innerHTML=html;
+  const bl=document.getElementById('btn-lim-olt');
+  if(bl) bl.onclick=()=>filtrarTablaOlt('todos','','');
 }
 </script>
 </body>
