@@ -328,7 +328,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       </div>
       <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:16px;margin-bottom:16px">
         <div class="chart-card">
-          <div class="chart-title">&#128202; Frecuencia de cajas — top 15</div>
+          <div class="chart-title">&#128202; Top 10 cajas — Incidencia / Índice Óptico / Regulatorio / Fiscalización</div>
           <div class="chart-sub">Azul=mes anterior &mdash; Rojo=mes actual &mdash; Tooltip muestra procedencia</div>
           <div class="chart-wrap tall" id="wrap-reinc"><canvas id="ch-reinc"></canvas></div>
         </div>
@@ -802,7 +802,7 @@ function buildReincidencias(){
     .slice(-2);
 
   document.getElementById('sub-reinc').textContent=ultimos2.length>=2
-    ?'Todas las cajas en '+cap(ultimos2[0])+' y '+cap(ultimos2[1])+' — '+selAnio
+    ?'Top 10 cajas en '+cap(ultimos2[0])+' y '+cap(ultimos2[1])+' — '+selAnio+' (Incidencia, Índice Óptico, Regulatorio, Fiscalización)'
     :'Insuficientes meses de datos';
 
   if(ultimos2.length<2){
@@ -814,32 +814,38 @@ function buildReincidencias(){
   const rm1=rowsAnio.filter(r=>(r['MES']||'').toUpperCase()===m1);
   const rm2=rowsAnio.filter(r=>(r['MES']||'').toUpperCase()===m2);
 
-  // Construir mapa de cajas con nombre completo + procedencia
-  // Incluir TODAS las cajas de ambos meses (no solo las que aparecen en ambos)
+  // Procedencias permitidas
+  const PROCS_VALIDAS=['INCIDENCIA','INDICE OPTICO','REGULATORIO','FISCALIZACION','FISCALIZACIÓN'];
+  const esProcValida=p=>PROCS_VALIDAS.some(v=>p.toUpperCase().includes(v.toUpperCase()));
+
+  // Construir mapa solo con las procedencias requeridas
   const cajaMap={}; // caja -> {m1, m2, total, proc}
 
   rm1.forEach(r=>{
+    const proc=(r['PROCEDENCIA']||'').trim();
+    if(!esProcValida(proc)) return;
     const c=(r['CAJA']||'').trim();
     if(!c) return;
-    if(!cajaMap[c]) cajaMap[c]={m1:0,m2:0,proc:(r['PROCEDENCIA']||'').trim()};
+    if(!cajaMap[c]) cajaMap[c]={m1:0,m2:0,proc:proc};
     cajaMap[c].m1++;
     cajaMap[c].total=(cajaMap[c].m1||0)+(cajaMap[c].m2||0);
   });
   rm2.forEach(r=>{
+    const proc=(r['PROCEDENCIA']||'').trim();
+    if(!esProcValida(proc)) return;
     const c=(r['CAJA']||'').trim();
     if(!c) return;
-    if(!cajaMap[c]) cajaMap[c]={m1:0,m2:0,proc:(r['PROCEDENCIA']||'').trim()};
+    if(!cajaMap[c]) cajaMap[c]={m1:0,m2:0,proc:proc};
     cajaMap[c].m2++;
     cajaMap[c].total=(cajaMap[c].m1||0)+(cajaMap[c].m2||0);
-    // Actualizar procedencia si no estaba
-    if(!cajaMap[c].proc) cajaMap[c].proc=(r['PROCEDENCIA']||'').trim();
+    if(!cajaMap[c].proc) cajaMap[c].proc=proc;
   });
 
-  // Ordenar por total descendente, mostrar top 15
+  // Ordenar por total descendente, top 10
   const data=Object.entries(cajaMap)
     .map(([caja,v])=>({caja,m1:v.m1,m2:v.m2,total:v.total,proc:v.proc,reincidente:v.m1>0&&v.m2>0}))
     .sort((a,b)=>b.total-a.total)
-    .slice(0,15);
+    .slice(0,10);
 
   if(!data.length){
     document.getElementById('wrap-reinc').innerHTML='<p style="font-size:12px;color:var(--text3);padding:40px;text-align:center">Sin datos para el periodo</p>';
@@ -850,8 +856,8 @@ function buildReincidencias(){
   // Resumen en el subtítulo
   const reincCount=data.filter(d=>d.reincidente).length;
   document.getElementById('sub-reinc').textContent=
-    'Top '+data.length+' cajas en '+cap(m1)+'/'+cap(m2)+' — '+selAnio+
-    ' · '+reincCount+' aparecen en ambos meses';
+    'Top 10 cajas en '+cap(m1)+'/'+cap(m2)+' — '+selAnio+
+    ' · '+reincCount+' reincidentes · Incidencia, Índice Óptico, Regulatorio, Fiscalización';
 
   // Gráfica de barras agrupadas
   if(chartReinc){chartReinc.destroy();chartReinc=null;}
