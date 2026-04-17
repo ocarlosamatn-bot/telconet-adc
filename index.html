@@ -256,10 +256,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       <span class="nav-icon">&#127758;</span>
       <span class="nav-label">Mapa de trabajos</span>
     </div>
-    <div class="nav-item" onclick="navTo('heatmap')" id="nav-heatmap">
-      <span class="nav-icon">&#128293;</span>
-      <span class="nav-label">Mapa de calor</span>
-    </div>
+
 
     <div class="sidebar-section">Migraciones</div>
     <div class="nav-item" onclick="navTo('mpls')" id="nav-mpls">
@@ -355,18 +352,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══ SECCION: HEATMAP ══ -->
-    <div id="sec-heatmap" style="display:none">
-      <div class="sec-header">
-        <div class="sec-title">&#128293; Mapa de calor de incidencias</div>
-        <div class="sec-sub">Concentracion de trabajos por nodo y mes</div>
-      </div>
-      <div class="chart-card full">
-        <div class="chart-title">Nodos vs Meses &mdash; intensidad de trabajos</div>
-        <div class="chart-sub" id="sub-heatmap">Top 10 nodos con mas trabajos</div>
-        <div id="wrap-heatmap" style="overflow-x:auto;padding:8px 0;margin-top:8px"></div>
-      </div>
-    </div>
+
 
     <!-- ══ SECCION: MPLS ══ -->
     <div id="sec-mpls" style="display:none">
@@ -476,7 +462,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz67t417K8sVPM58xikiGylphRXYqtM_YkkoQIgL5yse1ME-s0gP7NI4Gzht6QJtSeLdw/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzJiPL_yIWpLIQ0V5_jCjQhiZef-kPJ8QsBfJN9-urdU-bwevFcrSeoaZE5MO-ZmwVx9Q/exec';
 
 let rows=[], headers=[], rowsMig=[], headersMig=[], rowsOlt=[], headersOlt=[];
 let conv=[], chatOpen=false;
@@ -502,7 +488,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── NAVEGACION ── */
-const SECTIONS=['adc','reincidencias','mapa','heatmap','mpls','olt620'];
+const SECTIONS=['adc','reincidencias','mapa','mpls','olt620'];
 function navTo(sec){
   curSection=sec;
   SECTIONS.forEach(s=>{
@@ -514,8 +500,7 @@ function navTo(sec){
   if(rows.length){
     if(sec==='reincidencias') buildReincidencias();
     else if(sec==='mapa') buildMapa();
-    else if(sec==='heatmap') buildHeatmap();
-  }
+    }
   if(rowsMig.length && sec==='mpls') renderMigraciones();
   if(rowsOlt.length && sec==='olt620') renderOlt620();
 }
@@ -675,7 +660,6 @@ function renderDashboard(){
   // Actualizar sección activa si no es ADC
   if(curSection==='reincidencias') buildReincidencias();
   else if(curSection==='mapa') buildMapa();
-  else if(curSection==='heatmap') buildHeatmap();
 }
 
 function grp(arr,campo,n){
@@ -828,27 +812,7 @@ function buildMapa(){
   setTimeout(()=>map.invalidateSize(),150);
 }
 
-/* ── SECCION HEATMAP ── */
-function buildHeatmap(){
-  const wrap=document.getElementById('wrap-heatmap');if(!wrap)return;
-  const anioCol=getAnioCol();
-  let rowsAnio=rows.filter(r=>String(r[anioCol]||'').trim()===selAnio);
-  if(!rowsAnio.length) rowsAnio=rows;
-  const nodoMap={};rowsAnio.forEach(r=>{const n=(r['NODO']||'').trim();if(n)nodoMap[n]=(nodoMap[n]||0)+1;});
-  const topNodos=Object.entries(nodoMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([n])=>n);
-  const mesMap={};rowsAnio.forEach(r=>{const m=(r['MES']||'').toUpperCase();if(m)mesMap[m]=true;});
-  const mesesDisp=MESES.filter(m=>mesMap[m]);
-  if(!topNodos.length||!mesesDisp.length){wrap.innerHTML='<p style="font-size:12px;color:var(--text3);padding:20px">Sin datos</p>';return;}
-  const mat={};topNodos.forEach(n=>{mat[n]={};mesesDisp.forEach(m=>mat[n][m]=0);});
-  rowsAnio.forEach(r=>{const n=(r['NODO']||'').trim(),m=(r['MES']||'').toUpperCase();if(mat[n]&&m&&mat[n][m]!==undefined)mat[n][m]++;});
-  let maxV=0;topNodos.forEach(n=>mesesDisp.forEach(m=>{if(mat[n][m]>maxV)maxV=mat[n][m];}));
-  const hc=v=>{if(v===0)return '#f8f9fb';const p=v/maxV;if(p<.33)return'rgba(255,183,77,'+(0.3+p*1.5)+')';if(p<.66)return'rgba(230,57,70,'+(0.4+p*.6)+')';return'rgba(160,30,30,'+(0.6+p*.4)+')';};
-  const tc=v=>v===0?'#ccc':v/maxV>.4?'#fff':'#333';
-  let html='<table style="border-collapse:separate;border-spacing:3px;font-family:Inter,sans-serif"><tr><td style="width:140px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:4px 8px">Nodo</td>'+mesesDisp.map(m=>'<td style="width:70px;text-align:center;font-size:10px;font-weight:600;color:var(--tnblue);padding:4px 2px">'+cap(m).slice(0,3)+'</td>').join('')+'<td style="width:50px;text-align:center;font-size:10px;font-weight:600;color:var(--text3)">Total</td></tr>';
-  topNodos.forEach(n=>{const tot=mesesDisp.reduce((s,m)=>s+(mat[n][m]||0),0);html+='<tr><td style="font-size:11px;font-weight:500;padding:4px 8px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+n+'">'+n.slice(0,20)+'</td>'+mesesDisp.map(m=>{const v=mat[n][m]||0;return'<td style="width:70px;height:38px;text-align:center;background:'+hc(v)+';border-radius:5px;font-size:11px;font-weight:700;color:'+tc(v)+'" title="'+n+' — '+cap(m)+': '+v+'">'+(v||'')+'</td>';}).join('')+'<td style="text-align:center;font-size:12px;font-weight:700;color:var(--tnblue);background:var(--tnblue-light);border-radius:5px;padding:4px">'+tot+'</td></tr>';});
-  html+='</table><div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:10px;color:var(--text3)"><span>Menos</span><div style="display:flex;gap:2px">'+['#f8f9fb','rgba(255,183,77,.4)','rgba(255,183,77,.8)','rgba(230,57,70,.6)','rgba(160,30,30,.9)'].map(c=>'<div style="width:20px;height:12px;border-radius:3px;background:'+c+'"></div>').join('')+'</div><span>Mas incidencias</span></div>';
-  wrap.innerHTML=html;
-}
+
 
 /* ── MIGRACIONES MPLS ── */
 let estadoDataGlobal=[], cantonDataGlobal=[], colEstGlobal=[], colCantGlobal=[];
