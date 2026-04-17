@@ -330,7 +330,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
         <div class="chart-card">
           <div class="chart-title">&#128204; Top cajas reincidentes</div>
           <div class="chart-sub">Trabajos repetidos por caja/ruta</div>
-          <div class="chart-wrap tall" id="wrap-reinc"><canvas id="ch-reinc"></canvas></div>
+          <div id="wrap-reinc" style="position:relative;height:auto;min-height:300px"><canvas id="ch-reinc"></canvas></div>
         </div>
         <div class="chart-card">
           <div class="chart-title">&#128203; Detalle de reincidencias</div>
@@ -770,13 +770,24 @@ function buildReincidencias(){
   const data=Object.keys(cm1).filter(c=>cm2[c]).map(c=>({caja:c,m1:cm1[c],m2:cm2[c],total:cm1[c]+cm2[c]})).sort((a,b)=>b.total-a.total).slice(0,12);
   if(!data.length){document.getElementById('wrap-reinc').innerHTML='<p style="font-size:12px;color:var(--green);padding:40px;text-align:center">&#9989; Sin cajas reincidentes</p>';document.getElementById('tb-reinc').innerHTML='';return;}
   if(chartReinc){chartReinc.destroy();chartReinc=null;}
-  document.getElementById('wrap-reinc').innerHTML='<canvas id="ch-reinc"></canvas>';
+  const reinc_h=Math.max(320, data.length*52);
+  document.getElementById('wrap-reinc').innerHTML='<canvas id="ch-reinc" style="height:'+reinc_h+'px"></canvas>';
+  document.getElementById('wrap-reinc').style.height=reinc_h+'px';
   chartReinc=new Chart(document.getElementById('ch-reinc'),{type:'bar',data:{
-    labels:data.map(d=>d.caja.length>26?d.caja.slice(0,24)+'…':d.caja),
+    labels:data.map(d=>d.caja),
     datasets:[{label:cap(m1),data:data.map(d=>d.m1),backgroundColor:'rgba(0,71,190,.75)',borderRadius:3,borderSkipped:false},{label:cap(m2),data:data.map(d=>d.m2),backgroundColor:'rgba(230,57,70,.75)',borderRadius:3,borderSkipped:false}]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}}},scales:{y:{ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:8},maxRotation:40}}}}});
+  },options:{
+    indexAxis:'y',
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}},
+      tooltip:{callbacks:{title:ctx=>ctx[0].label,label:ctx=>ctx.dataset.label+': '+ctx.parsed.x+' trabajos'}}},
+    scales:{
+      x:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},
+      y:{grid:{display:false},ticks:{font:{size:10},crossAlign:'far'}}
+    }
+  }});
   document.getElementById('tb-reinc').innerHTML='<table class="dtable" style="font-size:11px"><tr><th>Caja / Ruta</th><th style="text-align:center">'+cap(m1)+'</th><th style="text-align:center">'+cap(m2)+'</th><th style="text-align:center">Total</th></tr>'+
-    data.map(d=>`<tr><td style="font-size:10px;word-break:break-all;max-width:280px" title="${d.caja}">${d.caja}</td><td style="text-align:center;color:var(--tnblue);font-weight:600">${d.m1}</td><td style="text-align:center;color:var(--red);font-weight:600">${d.m2}</td><td style="text-align:center;font-weight:700;background:var(--amber-light);color:var(--amber)">${d.total}</td></tr>`).join('')+'</table>';
+    data.map(d=>`<tr><td style="font-size:11px;word-break:break-word;max-width:320px;line-height:1.4">${d.caja}</td><td style="text-align:center;color:var(--tnblue);font-weight:600">${d.m1}</td><td style="text-align:center;color:var(--red);font-weight:600">${d.m2}</td><td style="text-align:center;font-weight:700;background:var(--amber-light);color:var(--amber)">${d.total}</td></tr>`).join('')+'</table>';
 }
 
 /* ── SECCION MAPA ── */
