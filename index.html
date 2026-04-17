@@ -1385,7 +1385,9 @@ function renderRutasNuevas(){
   const colEstado=headersRN.find(h=>h.toUpperCase().includes('ESTADO'))||headersRN[4]||'ESTADO DE MIGRACIÓN';
   const colUM=headersRN.find(h=>h.toUpperCase().includes('UM')||h.toUpperCase().includes('PENDIENTE'))||headersRN[5]||'UM PENDIENTES DE MIGRAR';
 
-  const total=rowsRN.length;
+  // Contar rutas únicas (una ruta puede reemplazar varias antiguas)
+  const rutasUnicas=new Set(rowsRN.map(r=>(r[colRutaNueva]||'').trim())).size;
+  const total=rutasUnicas;
   const migradas=rowsRN.filter(r=>(r[colEstado]||'').toUpperCase().includes('MIGRADA')&&!(r[colEstado]||'').toUpperCase().includes('PENDIENTE')).length;
   const enProceso=rowsRN.filter(r=>(r[colEstado]||'').toUpperCase().includes('PROCESO')).length;
   const enConstruccion=rowsRN.filter(r=>(r[colEstado]||'').toUpperCase().includes('CONSTRUC')).length;
