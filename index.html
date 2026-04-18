@@ -908,21 +908,54 @@ function buildAlertaRuta(rFilt){
   if(!top.length){el.style.display='none';return;}
   const [ruta,cnt]=top[0];const pct=Math.round(cnt/rFilt.length*100);
   el.style.display='block';
-  // Color rojo al 70% de intensidad (más suave)
-  el.innerHTML=`<div style="background:linear-gradient(135deg,#7a2020,#9e3030);border-radius:12px;padding:14px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div><div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;opacity:.8;margin-bottom:3px">&#128680; Ruta con mayor numero de incidencias</div>
-    <div style="font-size:14px;font-weight:700">${ruta}</div>
-    <div style="font-size:12px;opacity:.85;margin-top:3px"><strong>${cnt} trabajos</strong> &mdash; ${pct}% del total del periodo</div></div>
-    <div style="display:flex;gap:8px">${top.map(([r,v],i)=>`
-      <div onclick="this.querySelector('.rn-tooltip').style.display=this.querySelector('.rn-tooltip').style.display==='none'?'block':'none'"
-        style="background:rgba(255,255,255,${i===0?'.18':'.09'});border-radius:8px;padding:7px 12px;text-align:center;border:1px solid rgba(255,255,255,${i===0?'.35':'.12'});cursor:pointer;position:relative;user-select:none">
-        <div style="font-size:18px;font-weight:700">${v}</div>
-        <div style="font-size:9px;opacity:.8">#${i+1}</div>
-        <div class="rn-tooltip" style="display:none;position:absolute;bottom:calc(100% + 8px);right:0;background:#1a1a2e;color:#fff;font-size:11px;padding:8px 12px;border-radius:8px;white-space:nowrap;z-index:9999;min-width:180px;max-width:280px;white-space:normal;line-height:1.4;text-align:left;box-shadow:0 4px 16px rgba(0,0,0,.4)">
-          <div style="font-size:10px;opacity:.65;margin-bottom:3px">#${i+1} — ${v} trabajos</div>
-          <div style="font-weight:600">${r}</div>
-        </div>
-      </div>`).join('')}
+
+  // Función para actualizar el contenido del anuncio al hacer click
+  const alertaTopData = top; // guardar referencia
+  const renderAlerta = (idx) => {
+    const [rutaSel, cntSel] = alertaTopData[idx];
+    const pctSel = Math.round(cntSel / rFilt.length * 100);
+    document.getElementById('alerta-ruta-nombre').textContent = rutaSel;
+    document.getElementById('alerta-ruta-cnt').textContent = cntSel + ' trabajos';
+    document.getElementById('alerta-ruta-pct').textContent = pctSel + '% del total del periodo';
+    // Resaltar botón activo
+    document.querySelectorAll('.alerta-btn').forEach((btn, i) => {
+      const isActive = i === idx;
+      btn.style.background = isActive ? '#E24B4A' : '#FCEBEB';
+      btn.style.border = isActive ? '1px solid #E24B4A' : '1px solid #F7C1C1';
+      btn.querySelector('.alerta-num').style.color = isActive ? '#fff' : '#A32D2D';
+      btn.querySelector('.alerta-pos').style.color = isActive ? 'rgba(255,255,255,.8)' : '#A32D2D';
+    });
+  };
+
+  el.innerHTML = `<div style="background:#fff;border:1px solid #e0e4f0;border-left:4px solid #E24B4A;border-radius:10px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 1px 4px rgba(0,48,135,.06)">
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#A32D2D;margin-bottom:4px">&#9888; Ruta con mayor numero de incidencias</div>
+      <div id="alerta-ruta-nombre" style="font-size:14px;font-weight:700;color:#0d1526;line-height:1.3">${top[0][0]}</div>
+      <div style="font-size:12px;color:#4a5578;margin-top:4px">
+        <strong id="alerta-ruta-cnt">${top[0][1]} trabajos</strong>
+        &mdash; <span id="alerta-ruta-pct">${pct}% del total del periodo</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      ${top.map(([r,v],i) => `
+        <div class="alerta-btn" onclick="(function(){
+          const top=${JSON.stringify(top)};
+          const rFiltLen=${rFilt.length};
+          document.getElementById('alerta-ruta-nombre').textContent=top[${i}][0];
+          document.getElementById('alerta-ruta-cnt').textContent=top[${i}][1]+' trabajos';
+          document.getElementById('alerta-ruta-pct').textContent=Math.round(top[${i}][1]/rFiltLen*100)+'% del total del periodo';
+          document.querySelectorAll('.alerta-btn').forEach(function(b,j){
+            var active=j===${i};
+            b.style.background=active?'#E24B4A':'#FCEBEB';
+            b.style.border=active?'1px solid #E24B4A':'1px solid #F7C1C1';
+            b.querySelector('.alerta-num').style.color=active?'#fff':'#A32D2D';
+            b.querySelector('.alerta-pos').style.color=active?'rgba(255,255,255,.8)':'#A32D2D';
+          });
+        })()"
+          style="background:${i===0?'#E24B4A':'#FCEBEB'};border:1px solid ${i===0?'#E24B4A':'#F7C1C1'};border-radius:8px;padding:8px 14px;text-align:center;cursor:pointer;transition:.15s;user-select:none;min-width:52px">
+          <div class="alerta-num" style="font-size:18px;font-weight:700;color:${i===0?'#fff':'#A32D2D'};line-height:1">${v}</div>
+          <div class="alerta-pos" style="font-size:9px;color:${i===0?'rgba(255,255,255,.8)':'#A32D2D'};margin-top:2px">#${i+1}</div>
+        </div>`).join('')}
     </div>
   </div>`;
 }
