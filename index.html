@@ -895,17 +895,29 @@ function buildTbNodos(rFilt){
   document.getElementById('tb-nodos').innerHTML='<table class="dtable"><tr><th>Nodo</th><th>Trabajos</th><th>Proporcion</th></tr>'+d.map(([k,v])=>`<tr><td style="font-size:11px">${k.slice(0,22)}</td><td style="font-weight:600;color:var(--tnblue)">${v}</td><td><div class="pbar"><div class="pfill" style="width:${Math.round(v/max*100)}%"></div></div></td></tr>`).join('')+'</table>';
 }
 
+/* ── NORMALIZACIÓN DE NOMBRES DE RUTA ── */
+function normalizarRuta(caja){
+  // Extraer hasta FXX
+  const m=(caja||'').trim().match(/^(CUE-.*?-F\d+)/i);
+  const ruta=m?m[1].trim():(caja||'').trim().slice(0,50);
+  // Normalizar segmentos con / — ordenar partes alfabéticamente
+  // "Estadio 1/Epoca 1" === "Epoca 1/Estadio 1" → siempre queda igual
+  return ruta.split('-').map(seg=>{
+    if(!seg.includes('/')) return seg;
+    return seg.split('/').map(p=>p.trim()).sort((a,b)=>a.toUpperCase().localeCompare(b.toUpperCase())).join('/');
+  }).join('-');
+}
+
 function buildAlertaRuta(rFilt){
   const el=document.getElementById('alerta-ruta');if(!el)return;
   const rutaMap={};
   rFilt.forEach(r=>{
     const caja=(r['CAJA']||'').trim();if(!caja)return;
-    const m=caja.match(/^(CUE-.*?-F\d+)/i);
-    const ruta=m?m[1].trim():caja.slice(0,40);
+    // Normalizar: "Estadio 1/Epoca 1" === "Epoca 1/Estadio 1"
+    const ruta=normalizarRuta(caja);
     if(!ruta) return;
     if(!rutaMap[ruta]) rutaMap[ruta]={cnt:0,tareas:{}};
     rutaMap[ruta].cnt++;
-    // Contar tipos de tarea por ruta
     const tarea=(r['TIPO TAREA']||r['TIPO DE TAREA']||'Sin tipo').trim();
     rutaMap[ruta].tareas[tarea]=(rutaMap[ruta].tareas[tarea]||0)+1;
   });
@@ -1005,7 +1017,7 @@ function buildReincidencias(){
     if(!esProcValida(proc)) return;
     const c=(r['CAJA']||'').trim();
     if(!c) return;
-    const key=c+'||'+proc;
+    const key=c+'||'+proc; // nombre exacto — necesario para identificar la caja
     if(!cajaMap[key]) cajaMap[key]={caja:c,proc:proc,m1:0,m2:0};
     cajaMap[key].m1++;
   });
