@@ -539,8 +539,8 @@ function navTo(sec){
   // Renderizar la sección al entrar
   if(rows.length){
     if(sec==='reincidencias') buildReincidencias();
-    else if(sec==='mapa') buildMapa();
-    }
+    else if(sec==='mapa'){ window._regPendiente=false; buildMapa(); }
+  }
   if(sec==='mpls'){
     if(rowsMig.length){ renderMigraciones(); }
     else{ loadMigraciones(); }
@@ -646,11 +646,59 @@ async function loadRegInt(){
     const d=await jsonpAction(SCRIPT_URL.split('?')[0],'regint');
     if(d&&d.ok){
       rowsReg=d.rows; headersReg=d.headers;
-      console.log('[REG] Cargado OK:', rowsReg.length, 'tareas');
-      // Si el mapa está activo, refrescar
-      if(curSection==='mapa') buildMapa();
-    } else console.warn('[REG]', (d&&d.error)||'Sin datos');
+      console.log('[REG] Cargado OK:', rowsReg.length, 'tareas, headers:', headersReg);
+      // Si el mapa está activo y ya tiene instancia, agregar puntos directamente
+      if(curSection==='mapa' && mapaLeaflet){
+        agregarCapaRegulatorio();
+      } else {
+        window._regPendiente=true;
+      }
+    } else {
+      console.warn('[REG]', (d&&d.error)||'Sin datos');
+    }
   } catch(e){ console.warn('[REG] Error:', e.message); }
+}
+
+function agregarCapaRegulatorio(){
+  if(!mapaLeaflet || !rowsReg.length) return;
+  const colLat=headersReg.find(h=>h.toUpperCase().includes('LAT'))||headersReg[1];
+  const colLng=headersReg.find(h=>h.toUpperCase().includes('LON')||h.toUpperCase().includes('LONG'))||headersReg[2];
+  const colTarea=headersReg.find(h=>h.toUpperCase().includes('TAREA'))||headersReg[0];
+  console.log('[REG] Columnas:', colLat, colLng, colTarea, '| Primera fila:', JSON.stringify(rowsReg[0]));
+  let regCount=0;
+  rowsReg.forEach(r=>{
+    const latStr=(r[colLat]||'').toString().replace(',','.');
+    const lngStr=(r[colLng]||'').toString().replace(',','.');
+    const lat=parseFloat(latStr);
+    const lng=parseFloat(lngStr);
+    if(isNaN(lat)||isNaN(lng)||lat===0||lng===0) return;
+    const icon=L.divIcon({
+      className:'',
+      html:'<div style="width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:18px solid #ff6b00"></div>',
+      iconSize:[18,18],
+      iconAnchor:[9,18]
+    });
+    const mk=L.marker([lat,lng],{icon}).addTo(mapaLeaflet);
+    mk.bindPopup(
+      '<div style="font-size:12px;min-width:160px">'+
+      '<div style="background:#ff6b00;color:#fff;padding:4px 8px;border-radius:4px 4px 0 0;font-size:10px;font-weight:700">&#9888; REGULATORIO INT</div>'+
+      '<div style="padding:6px 8px"><strong>Tarea:</strong> '+(r[colTarea]||'Sin número')+'<br>'+
+      '<span style="font-size:10px;color:#666">Cambio de postería — requiere revisión</span></div>'+
+      '</div>'
+    );
+    regCount++;
+  });
+  console.log('[REG] Puntos agregados al mapa:', regCount);
+  if(regCount>0){
+    const leyenda=document.getElementById('mapa-leyenda');
+    if(leyenda && !document.getElementById('reg-leyenda')){
+      const div=document.createElement('div');
+      div.id='reg-leyenda';
+      div.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)';
+      div.innerHTML='<div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid #ff6b00"></div> Regulatorio Int. ('+regCount+')';
+      leyenda.appendChild(div);
+    }
+  }
 }
 
 async function refresh(){
@@ -1209,7 +1257,12 @@ function buildMapa(){
     const group=L.featureGroup(marcadores);
     map.fitBounds(group.getBounds().pad(0.08));
   }
-  setTimeout(()=>map.invalidateSize(),150);
+  setTimeout(()=>{
+    map.invalidateSize();
+    // Agregar capa regulatorio si ya cargó
+    if(rowsReg.length) agregarCapaRegulatorio();
+    // Si aún no cargó, se agregará cuando llegue vía loadRegInt
+  },150);
 }
 
 
