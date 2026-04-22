@@ -661,17 +661,33 @@ async function loadRegInt(){
 
 function agregarCapaRegulatorio(){
   if(!mapaLeaflet || !rowsReg.length) return;
-  const colLat=headersReg.find(h=>h.toUpperCase().includes('LAT'))||headersReg[1];
-  const colLng=headersReg.find(h=>h.toUpperCase().includes('LON')||h.toUpperCase().includes('LONG'))||headersReg[2];
   const colTarea=headersReg.find(h=>h.toUpperCase().includes('TAREA'))||headersReg[0];
-  console.log('[REG] Columnas:', colLat, colLng, colTarea, '| Primera fila:', JSON.stringify(rowsReg[0]));
+  const colCoord=headersReg.find(h=>h.toUpperCase().includes('COORD')||h.toUpperCase().includes('LAT'))||headersReg[1];
+  const colLat=headersReg.find(h=>h.toUpperCase().includes('LAT')&&!h.toUpperCase().includes('COORD'));
+  const colLng=headersReg.find(h=>h.toUpperCase().includes('LON')||h.toUpperCase().includes('LONG'));
+  console.log('[REG] Headers:', headersReg, '| Primera fila:', JSON.stringify(rowsReg[0]));
+
   let regCount=0;
   rowsReg.forEach(r=>{
-    const latStr=(r[colLat]||'').toString().replace(',','.');
-    const lngStr=(r[colLng]||'').toString().replace(',','.');
-    const lat=parseFloat(latStr);
-    const lng=parseFloat(lngStr);
+    let lat=NaN, lng=NaN;
+
+    // Caso 1: columna COORDENADAS con "lat,lng" en una sola celda
+    if(colCoord && r[colCoord]){
+      const raw=(r[colCoord]||'').toString().trim();
+      const parts=raw.split(',');
+      if(parts.length>=2){
+        lat=parseFloat(parts[0].trim());
+        lng=parseFloat(parts[1].trim());
+      }
+    }
+    // Caso 2: columnas separadas LAT y LONGITUD
+    if((isNaN(lat)||isNaN(lng)) && colLat && colLng){
+      lat=parseFloat((r[colLat]||'').toString().replace(',','.'));
+      lng=parseFloat((r[colLng]||'').toString().replace(',','.'));
+    }
+
     if(isNaN(lat)||isNaN(lng)||lat===0||lng===0) return;
+
     const icon=L.divIcon({
       className:'',
       html:'<div style="width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:18px solid #ff6b00"></div>',
@@ -688,6 +704,7 @@ function agregarCapaRegulatorio(){
     );
     regCount++;
   });
+
   console.log('[REG] Puntos agregados al mapa:', regCount);
   if(regCount>0){
     const leyenda=document.getElementById('mapa-leyenda');
