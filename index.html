@@ -494,7 +494,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxq_vVTg08xaboI6BC937Qgs9EGx3RV5H0lzPJfeqxFlrLK8oNoBmLXpldaHwde5vU68Q/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxECYct0VDZ1eO70NqLjYZJ2VdHbb_nfr9RCRIhHhc4taJYhM6QyAkZXi410OgPmeN9jw/exec';
 
 let rows=[], headers=[], rowsMig=[], headersMig=[], rowsOlt=[], headersOlt=[], rowsRN=[], headersRN=[], rowsReg=[], headersReg=[];
 let conv=[], chatOpen=false;
@@ -539,7 +539,7 @@ function navTo(sec){
   // Renderizar la sección al entrar
   if(rows.length){
     if(sec==='reincidencias') buildReincidencias();
-    else if(sec==='mapa'){ window._regPendiente=false; buildMapa(); }
+    else if(sec==='mapa'){ window._regPendiente=false; buildMapa(); setTimeout(cargarSectoresFotos,500); }
   }
   if(sec==='mpls'){
     if(rowsMig.length){ renderMigraciones(); }
@@ -1975,6 +1975,131 @@ function filtrarRutasNuevas(tipo, valor){
   document.getElementById('tb-rn').innerHTML=html;
   const bl=document.getElementById('btn-lim-rn');
   if(bl) bl.onclick=()=>filtrarRutasNuevas('todos','');
+}
+/* ── GALERÍA FOTOGRÁFICA ── */
+window._sectoresFotos=[];
+// Coordenadas de sectores fotográficos
+window._coordsFotos={
+  '1qv7cNfpO-14IMqgwJ7SLRd-9VUgLx6MN': [-2.9050, -79.0050], // UNIDAD_NACIONAL
+  '1b-65TwoBIBZr5rHlHZcV6qYuiNmYTC7v': [-2.8820, -78.9780]  // TOTORACOCHA
+};
+
+function cargarSectoresFotos(){
+  jsonpAction(SCRIPT_URL.split('?')[0],'fotos').then(d=>{
+    if(d&&d.ok&&d.sectores){
+      window._sectoresFotos=d.sectores;
+      agregarMarcadoresFotos();
+    }
+  }).catch(e=>console.warn('[FOTOS]',e.message));
+}
+
+function agregarMarcadoresFotos(){
+  if(!mapaLeaflet||!window._sectoresFotos.length) return;
+  // Eliminar marcadores anteriores si existen
+  (window._fotoMarcadores||[]).forEach(m=>{try{mapaLeaflet.removeLayer(m);}catch(e){}});
+  window._fotoMarcadores=[];
+
+  window._sectoresFotos.forEach(sector=>{
+    // Marcador de cámara en el centro del mapa por ahora
+    // Las coordenadas se actualizan cuando el usuario nos las dé
+    const coords=window._coordsFotos&&window._coordsFotos[sector.id]||null;
+    if(!coords) return;
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="background:#003087;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,48,135,.4);border:2px solid #fff;cursor:pointer">📷</div>`,
+      iconSize:[32,32],iconAnchor:[16,16]
+    });
+    const mk=L.marker(coords,{icon}).addTo(mapaLeaflet);
+    mk.bindPopup(`<div style="text-align:center;padding:4px 8px;min-width:140px">
+      <div style="font-size:12px;font-weight:700;color:#003087;margin-bottom:6px">📷 ${sector.nombre}</div>
+      <button onclick="abrirGaleria('${sector.id}','${sector.nombre}')" style="background:#003087;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif">Ver fotos</button>
+    </div>`,{maxWidth:200});
+    window._fotoMarcadores.push(mk);
+  });
+  // Agregar fotos a la leyenda del mapa si no existe ya
+  const leyFotos=document.getElementById('ley-fotos');
+  if(!leyFotos){
+    const leyenda=document.getElementById('mapa-leyenda');
+    if(leyenda){
+      const div=document.createElement('div');
+      div.id='ley-fotos';
+      div.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);background:var(--surface);border:1.5px solid #003087;padding:4px 10px;border-radius:20px';
+      div.innerHTML='<span style="font-size:14px">📷</span> Reporte fotográfico ('+window._sectoresFotos.length+')';
+      leyenda.appendChild(div);
+    }
+  }
+}
+
+async function abrirGaleria(carpetaId, nombre){
+  // Mostrar modal de carga
+  mostrarModal(nombre,'<div style="text-align:center;padding:30px"><div style="font-size:13px;color:#666">Cargando fotos...</div></div>');
+  try{
+    const d=await jsonpAction(SCRIPT_URL.split('?')[0],'fotos&carpeta='+carpetaId);
+    if(!d||!d.ok) throw new Error(d&&d.error||'Error');
+    if(!d.fotos||!d.fotos.length){
+      mostrarModal(nombre,'<p style="text-align:center;padding:20px;color:#666">Sin fotos en este sector</p>');
+      return;
+    }
+    // Renderizar galería
+    let idx=0;
+    const total=d.fotos.length;
+    const renderFoto=i=>{
+      const f=d.fotos[i];
+      document.getElementById('gal-main').innerHTML=`<img src="${f.url}" style="max-width:100%;max-height:420px;border-radius:8px;object-fit:contain;display:block;margin:0 auto" onerror="this.src='';this.alt='No se pudo cargar la imagen'"/>`;
+      document.getElementById('gal-counter').textContent=(i+1)+' / '+total;
+      document.getElementById('gal-nombre').textContent=f.nombre;
+      document.querySelectorAll('.gal-thumb').forEach((t,j)=>t.style.border=j===i?'2px solid #003087':'2px solid transparent');
+    };
+
+    const thumbsHtml=d.fotos.map((f,i)=>`<img class="gal-thumb" src="${f.thumb}" onclick="window._galRender(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:.15s" onerror="this.style.display='none'"/>`).join('');
+
+    mostrarModal(nombre,`
+      <div id="gal-main" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:#f0f2f7;border-radius:8px;margin-bottom:10px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <button onclick="window._galPrev()" style="background:var(--tnblue,#003087);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:13px">&#8592;</button>
+        <div style="text-align:center">
+          <div id="gal-counter" style="font-size:11px;color:#666"></div>
+          <div id="gal-nombre" style="font-size:10px;color:#999;margin-top:2px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+        </div>
+        <button onclick="window._galNext()" style="background:var(--tnblue,#003087);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:13px">&#8594;</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${thumbsHtml}</div>
+    `);
+
+    window._galRender=renderFoto;
+    window._galPrev=()=>{idx=(idx-1+total)%total;renderFoto(idx);idx=idx;};
+    window._galNext=()=>{idx=(idx+1)%total;renderFoto(idx);idx=idx;};
+    // Corregir estado de idx
+    window._galPrev=()=>{idx=(idx===0?total-1:idx-1);renderFoto(idx);};
+    window._galNext=()=>{idx=(idx===total-1?0:idx+1);renderFoto(idx);};
+    renderFoto(0);
+  }catch(e){
+    mostrarModal(nombre,'<p style="text-align:center;padding:20px;color:var(--red,#a01e1e)">Error: '+e.message+'</p>');
+  }
+}
+
+function mostrarModal(titulo, contenido){
+  let modal=document.getElementById('foto-modal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='foto-modal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    modal.onclick=e=>{if(e.target===modal)cerrarModal();};
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:20px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;color:#003087">📷 ${titulo}</div>
+      <button onclick="cerrarModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;line-height:1">&#x2715;</button>
+    </div>
+    ${contenido}
+  </div>`;
+  modal.style.display='flex';
+}
+
+function cerrarModal(){
+  const m=document.getElementById('foto-modal');
+  if(m) m.style.display='none';
 }
 </script>
 </body>
