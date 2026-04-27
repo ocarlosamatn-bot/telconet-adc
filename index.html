@@ -2034,7 +2034,16 @@ async function abrirGaleria(carpetaId, nombre){
   // Mostrar modal de carga
   mostrarModal(nombre,'<div style="text-align:center;padding:30px"><div style="font-size:13px;color:#666">Cargando fotos...</div></div>');
   try{
-    const d=await jsonpAction(SCRIPT_URL.split('?')[0],'fotos&carpeta='+carpetaId);
+    const base=SCRIPT_URL.split('?')[0];
+    const d=await new Promise((res,rej)=>{
+      const cb='cba_fotos_'+Date.now();
+      const s=document.createElement('script');
+      const t=setTimeout(()=>{delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);rej(new Error('Timeout fotos'));},30000);
+      window[cb]=data=>{clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);res(data);};
+      s.onerror=()=>{clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);rej(new Error('Error cargando fotos'));};
+      s.src=base+'?action=fotos&carpeta='+encodeURIComponent(carpetaId)+'&callback='+cb;
+      document.head.appendChild(s);
+    });
     if(!d||!d.ok) throw new Error(d&&d.error||'Error');
     if(!d.fotos||!d.fotos.length){
       mostrarModal(nombre,'<p style="text-align:center;padding:20px;color:#666">Sin fotos en este sector</p>');
