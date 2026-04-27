@@ -1980,8 +1980,8 @@ function filtrarRutasNuevas(tipo, valor){
 window._sectoresFotos=[];
 // Coordenadas de sectores fotográficos
 window._coordsFotos={
-  '1qv7cNfpO-14IMqgwJ7SLRd-9VUgLx6MN': [-2.9050, -79.0050], // UNIDAD_NACIONAL
-  '1b-65TwoBIBZr5rHlHZcV6qYuiNmYTC7v': [-2.8820, -78.9780]  // TOTORACOCHA
+  '1qv7cNfpO-14IMqgwJ7SLRd-9VUgLx6MN': [-2.897489, -79.015539], // UNIDAD_NACIONAL
+  '1b-65TwoBIBZr5rHlHZcV6qYuiNmYTC7v': [-2.894964, -78.988498]  // TOTORACOCHA
 };
 
 function cargarSectoresFotos(){
@@ -2024,66 +2024,96 @@ function agregarMarcadoresFotos(){
       const div=document.createElement('div');
       div.id='ley-fotos';
       div.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);background:var(--surface);border:1.5px solid #003087;padding:4px 10px;border-radius:20px';
+      div.style.cursor='pointer';
+      div.title='Clic para mostrar/ocultar marcadores de fotos';
       div.innerHTML='<span style="font-size:14px">📷</span> Reporte fotográfico ('+window._sectoresFotos.length+')';
+      div.onclick=()=>toggleFotosMapa(div);
       leyenda.appendChild(div);
     }
   }
 }
 
 async function abrirGaleria(carpetaId, nombre){
-  // Mostrar modal de carga
-  mostrarModal(nombre,'<div style="text-align:center;padding:30px"><div style="font-size:13px;color:#666">Cargando fotos...</div></div>');
+  mostrarModal(nombre,'<div style="text-align:center;padding:40px 20px"><div style="font-size:24px;margin-bottom:10px">⏳</div><div style="font-size:13px;color:#666">Cargando fotos...</div></div>');
   try{
     const base=SCRIPT_URL.split('?')[0];
     const d=await new Promise((res,rej)=>{
       const cb='cba_fotos_'+Date.now();
       const s=document.createElement('script');
-      const t=setTimeout(()=>{delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);rej(new Error('Timeout fotos'));},30000);
+      const t=setTimeout(()=>{delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);rej(new Error('Timeout'));},30000);
       window[cb]=data=>{clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);res(data);};
-      s.onerror=()=>{clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);rej(new Error('Error cargando fotos'));};
+      s.onerror=()=>{clearTimeout(t);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);rej(new Error('Error de red'));};
       s.src=base+'?action=fotos&carpeta='+encodeURIComponent(carpetaId)+'&callback='+cb;
       document.head.appendChild(s);
     });
-    if(!d||!d.ok) throw new Error(d&&d.error||'Error');
+    if(!d||!d.ok) throw new Error(d&&d.error||'Error desconocido');
     if(!d.fotos||!d.fotos.length){
-      mostrarModal(nombre,'<p style="text-align:center;padding:20px;color:#666">Sin fotos en este sector</p>');
+      mostrarModal(nombre,'<p style="text-align:center;padding:30px;color:#666">📭 Sin fotos en este sector</p>');
       return;
     }
-    // Renderizar galería
+    const fotos=d.fotos;
+    const total=fotos.length;
     let idx=0;
-    const total=d.fotos.length;
+    const getImgUrl=id=>'https://drive.google.com/thumbnail?id='+id+'&sz=w1200';
+    const getThumbUrl=id=>'https://drive.google.com/thumbnail?id='+id+'&sz=w120';
     const renderFoto=i=>{
-      const f=d.fotos[i];
-      document.getElementById('gal-main').innerHTML=`<img src="${f.url}" style="max-width:100%;max-height:420px;border-radius:8px;object-fit:contain;display:block;margin:0 auto" onerror="this.src='';this.alt='No se pudo cargar la imagen'"/>`;
-      document.getElementById('gal-counter').textContent=(i+1)+' / '+total;
-      document.getElementById('gal-nombre').textContent=f.nombre;
-      document.querySelectorAll('.gal-thumb').forEach((t,j)=>t.style.border=j===i?'2px solid #003087':'2px solid transparent');
+      idx=i;
+      const f=fotos[i];
+      const el=document.getElementById('gal-main');
+      if(!el) return;
+      el.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:380px;background:#f0f2f7;border-radius:10px"><div style="font-size:13px;color:#888">Cargando...</div></div>';
+      const img=new Image();
+      img.onload=()=>{
+        const el2=document.getElementById('gal-main');
+        if(!el2) return;
+        img.style.cssText='max-width:100%;max-height:380px;border-radius:10px;object-fit:contain;display:block;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,.15)';
+        el2.innerHTML='';
+        el2.appendChild(img);
+      };
+      img.onerror=()=>{
+        const el2=document.getElementById('gal-main');
+        if(!el2) return;
+        el2.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:#888;gap:8px"><div style="font-size:30px">🖼️</div><div style="font-size:12px">No se pudo cargar</div><a href="'+f.url+'" target="_blank" style="font-size:11px;color:#003087">Abrir en Drive ↗</a></div>';
+      };
+      img.src=getImgUrl(f.id);
+      const cnt=document.getElementById('gal-counter');
+      const nom=document.getElementById('gal-nombre');
+      if(cnt) cnt.textContent=(i+1)+' / '+total;
+      if(nom) nom.textContent=f.nombre;
+      document.querySelectorAll('.gal-thumb').forEach((t,j)=>{
+        t.style.border=j===i?'3px solid #003087':'2px solid transparent';
+        t.style.opacity=j===i?'1':'0.6';
+        t.style.transform=j===i?'scale(1.08)':'scale(1)';
+      });
     };
-
-    const thumbsHtml=d.fotos.map((f,i)=>`<img class="gal-thumb" src="${f.thumb}" onclick="window._galRender(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:.15s" onerror="this.style.display='none'"/>`).join('');
-
-    mostrarModal(nombre,`
-      <div id="gal-main" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:#f0f2f7;border-radius:8px;margin-bottom:10px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <button onclick="window._galPrev()" style="background:var(--tnblue,#003087);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:13px">&#8592;</button>
-        <div style="text-align:center">
-          <div id="gal-counter" style="font-size:11px;color:#666"></div>
-          <div id="gal-nombre" style="font-size:10px;color:#999;margin-top:2px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-        </div>
-        <button onclick="window._galNext()" style="background:var(--tnblue,#003087);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:13px">&#8594;</button>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${thumbsHtml}</div>
-    `);
-
+    const thumbsHtml=fotos.map((f,i)=>{
+      const th=document.createElement('img');
+      th.className='gal-thumb';
+      th.src=getThumbUrl(f.id);
+      th.title=f.nombre;
+      th.style.cssText='width:72px;height:72px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:all .15s;opacity:.6';
+      th.onclick=()=>window._galRender(i);
+      th.onerror=()=>{th.style.display='none';};
+      return th.outerHTML;
+    }).join('');
+    mostrarModal(nombre,
+      '<div id="gal-main" style="min-height:200px;margin-bottom:12px"></div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px">'+
+        '<button onclick="window._galPrev()" style="background:#003087;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-size:20px;flex-shrink:0">←</button>'+
+        '<div style="text-align:center;flex:1">'+
+          '<div id="gal-counter" style="font-size:13px;font-weight:600;color:#003087"></div>'+
+          '<div id="gal-nombre" style="font-size:10px;color:#999;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'+
+        '</div>'+
+        '<button onclick="window._galNext()" style="background:#003087;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-size:20px;flex-shrink:0">→</button>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding-top:8px;border-top:1px solid #eee">'+thumbsHtml+'</div>'
+    );
     window._galRender=renderFoto;
-    window._galPrev=()=>{idx=(idx-1+total)%total;renderFoto(idx);idx=idx;};
-    window._galNext=()=>{idx=(idx+1)%total;renderFoto(idx);idx=idx;};
-    // Corregir estado de idx
-    window._galPrev=()=>{idx=(idx===0?total-1:idx-1);renderFoto(idx);};
-    window._galNext=()=>{idx=(idx===total-1?0:idx+1);renderFoto(idx);};
+    window._galPrev=()=>renderFoto((idx-1+total)%total);
+    window._galNext=()=>renderFoto((idx+1)%total);
     renderFoto(0);
   }catch(e){
-    mostrarModal(nombre,'<p style="text-align:center;padding:20px;color:var(--red,#a01e1e)">Error: '+e.message+'</p>');
+    mostrarModal(nombre,'<p style="text-align:center;padding:20px;color:#a01e1e">⚠️ '+e.message+'</p>');
   }
 }
 
@@ -2104,6 +2134,16 @@ function mostrarModal(titulo, contenido){
     ${contenido}
   </div>`;
   modal.style.display='flex';
+}
+
+function toggleFotosMapa(btn){
+  const activo=btn.dataset.activo!=='0';
+  (window._fotoMarcadores||[]).forEach(m=>{
+    try{ activo?mapaLeaflet.removeLayer(m):mapaLeaflet.addLayer(m); }catch(e){}
+  });
+  btn.dataset.activo=activo?'0':'1';
+  btn.style.opacity=activo?'0.4':'1';
+  btn.style.textDecoration=activo?'line-through':'none';
 }
 
 function cerrarModal(){
